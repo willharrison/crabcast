@@ -35,6 +35,20 @@ A desktop app for managing multiple [Claude Code](https://claude.ai/code) CLI in
 
 ## Install
 
+Download the latest release from the [Releases page](https://github.com/willharrison/crabcast/releases).
+
+### macOS
+
+After downloading the `.dmg`, if you see "CrabCast is damaged and can't be opened":
+
+```bash
+xattr -cr /Applications/CrabCast.app
+```
+
+This is because the app is not yet code-signed. This command removes the Gatekeeper quarantine flag.
+
+### From source
+
 ```bash
 git clone https://github.com/willharrison/crabcast.git
 cd crabcast
