@@ -1,14 +1,26 @@
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { VitePlugin } from "@electron-forge/plugin-vite";
+import path from "path";
+import fs from "fs";
+
+function copyNativeModule(buildPath: string, moduleName: string) {
+  const src = path.join(__dirname, "node_modules", moduleName);
+  const dest = path.join(buildPath, "node_modules", moduleName);
+  fs.cpSync(src, dest, { recursive: true });
+}
 
 const config: ForgeConfig = {
   packagerConfig: {
     icon: "assets/icon",
-    asar: true,
-    // Native modules can't be inside asar
-    asarUnpack: [
-      "node_modules/node-pty/**",
-    ],
+    asar: {
+      unpack: "{node_modules/node-pty/**,**/*.node}",
+    },
+  },
+  hooks: {
+    packageAfterCopy: async (_config, buildPath) => {
+      // Copy native node-pty module into the build so it's available at runtime
+      copyNativeModule(buildPath, "node-pty");
+    },
   },
   makers: [
     { name: "@electron-forge/maker-zip" },
