@@ -15,10 +15,10 @@ const config: ForgeConfig = {
     asar: {
       unpack: "{node_modules/node-pty/**,**/*.node}",
     },
+  },
+  rebuildConfig: {
     // node-pty ships prebuilds for all platforms — skip recompilation
-    rebuildConfig: {
-      onlyModules: [],
-    },
+    onlyModules: [],
   },
   hooks: {
     packageAfterCopy: async (_config, buildPath) => {
