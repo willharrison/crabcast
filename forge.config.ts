@@ -13,13 +13,10 @@ const config: ForgeConfig = {
   packagerConfig: {
     icon: "assets/icon",
     asar: {
-      unpack: "{node_modules/node-pty/**,**/*.node}",
+      unpack: "**/node-pty/**",
     },
   },
-  rebuildConfig: {
-    // node-pty ships prebuilds for all platforms — skip recompilation
-    onlyModules: [],
-  },
+  rebuildConfig: {},
   hooks: {
     packageAfterCopy: async (_config, buildPath) => {
       // Copy native node-pty module into the build so it's available at runtime
