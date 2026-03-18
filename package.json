@@ -2,6 +2,8 @@
   "name": "crabcast",
   "version": "0.1.0",
   "description": "Multi-agent Claude Code manager",
+  "license": "MIT",
+  "author": "Will Harrison",
   "main": ".vite/build/index.js",
   "scripts": {
     "start": "electron-forge start",
