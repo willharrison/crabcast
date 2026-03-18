@@ -10,7 +10,15 @@ const config: ForgeConfig = {
       "node_modules/node-pty/**",
     ],
   },
-  makers: [{ name: "@electron-forge/maker-zip" }],
+  makers: [
+    { name: "@electron-forge/maker-zip" },
+    {
+      name: "@electron-forge/maker-dmg",
+      config: {
+        format: "ULFO",
+      },
+    },
+  ],
   plugins: [
     new VitePlugin({
       build: [

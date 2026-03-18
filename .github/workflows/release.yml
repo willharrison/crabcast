@@ -1,0 +1,74 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            arch: x64
+          - os: macos-latest
+            arch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npx electron-forge make --arch=${{ matrix.arch }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: crabcast-${{ matrix.os }}-${{ matrix.arch }}
+          path: out/make/**/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: CrabCast v${{ steps.version.outputs.version }}
+          body: |
+            Automated build from `main` branch.
+
+            Download the appropriate file for your platform:
+            - **macOS Apple Silicon**: `crabcast-darwin-arm64-*.zip` or `.dmg`
+            - **macOS Intel**: `crabcast-darwin-x64-*.zip` or `.dmg`
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
