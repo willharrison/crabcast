@@ -44,15 +44,19 @@ export class PtyManager {
       const resumeFlag = resumeSessionId ? ` --resume '${resumeSessionId}'` : "";
       args.push(`bash -l -c 'cd ${escapedCwd} && claude${resumeFlag}'`);
     } else {
-      shell = "claude";
-      args = resumeSessionId ? ["--resume", resumeSessionId] : [];
+      // Use a login shell so the user's PATH is available — packaged Electron
+      // apps don't inherit shell environment, so `claude` wouldn't be found.
+      const resumeFlag = resumeSessionId ? ` --resume '${resumeSessionId}'` : "";
+      const escapedCwd = cwd.replace(/'/g, "'\\''");
+      shell = process.env.SHELL || "/bin/zsh";
+      args = ["-l", "-c", `cd '${escapedCwd}' && claude${resumeFlag}`];
     }
 
     const ptyProcess = pty.spawn(shell, args, {
       name: "xterm-256color",
       cols: 120,
       rows: 30,
-      cwd: ssh ? undefined : cwd,
+      cwd: undefined,
       env: { ...process.env } as Record<string, string>,
     });
 
