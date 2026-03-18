@@ -17,6 +17,10 @@ jobs:
             arch: x64
           - os: macos-latest
             arch: arm64
+          - os: ubuntu-latest
+            arch: x64
+          - os: windows-latest
+            arch: x64
 
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +29,10 @@ jobs:
         with:
           node-version: 20
           cache: npm
+
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot rpm
 
       - name: Install dependencies
         run: npm ci
@@ -37,7 +45,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: crabcast-${{ matrix.os }}-${{ matrix.arch }}
+          name: crabcast-${{ runner.os }}-${{ matrix.arch }}
           path: out/make/**/*
 
   release:
@@ -63,9 +71,16 @@ jobs:
           body: |
             Automated build from `main` branch.
 
-            Download the appropriate file for your platform:
-            - **macOS Apple Silicon**: `crabcast-darwin-arm64-*.zip` or `.dmg`
-            - **macOS Intel**: `crabcast-darwin-x64-*.zip` or `.dmg`
+            **macOS**
+            - Apple Silicon: `.dmg` or `.zip` (arm64)
+            - Intel: `.dmg` or `.zip` (x64)
+
+            **Linux**
+            - `.deb` (Debian/Ubuntu)
+            - `.rpm` (Fedora/RHEL)
+
+            **Windows**
+            - `.exe` installer (x64)
           files: artifacts/**/*
           draft: false
           prerelease: false

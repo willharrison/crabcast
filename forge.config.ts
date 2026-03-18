@@ -18,6 +18,18 @@ const config: ForgeConfig = {
         format: "ULFO",
       },
     },
+    {
+      name: "@electron-forge/maker-deb",
+      config: {},
+    },
+    {
+      name: "@electron-forge/maker-rpm",
+      config: {},
+    },
+    {
+      name: "@electron-forge/maker-squirrel",
+      config: {},
+    },
   ],
   plugins: [
     new VitePlugin({
