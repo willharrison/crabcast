@@ -13,8 +13,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-13
-            arch: x64
           - os: macos-latest
             arch: arm64
           - os: ubuntu-latest
@@ -72,8 +70,7 @@ jobs:
             Automated build from `main` branch.
 
             **macOS**
-            - Apple Silicon: `.dmg` or `.zip` (arm64)
-            - Intel: `.dmg` or `.zip` (x64)
+            - `.dmg` or `.zip` (arm64, runs on Intel via Rosetta 2)
 
             **Linux**
             - `.deb` (Debian/Ubuntu)
