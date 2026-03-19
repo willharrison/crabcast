@@ -233,8 +233,8 @@ export function App() {
         markRunning(agentId);
       }
 
-      // Signal 4: Large data chunks indicate active output (tool results, code gen)
-      if (data.length > 200 && !activeAgents.current.has(agentId)) {
+      // Signal 4: Large data chunks indicate active output (tool results, code gen, responses)
+      if (data.length > 80 && !activeAgents.current.has(agentId)) {
         markRunning(agentId);
       }
 
@@ -255,13 +255,22 @@ export function App() {
             patchAgent(agentId, { state: "idle", needsAttention: true });
           } else {
             patchAgent(agentId, { state: "idle", needsAttention: false });
-            // Mark as unread if it was running and user isn't viewing it
+            // Mark as unread if it was running
             if (wasRunning) {
               setUnreadAgents(prev => {
                 const next = new Set(prev);
                 next.add(agentId);
                 return next;
               });
+              // Notify if app isn't focused
+              if (settings.notifications && !document.hasFocus()) {
+                const agent = agents.find(a => a.id === agentId);
+                if (agent) {
+                  new Notification("Agent finished", {
+                    body: `${agent.customName ?? agent.repoName} is waiting for input`,
+                  });
+                }
+              }
             }
           }
 
