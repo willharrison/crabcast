@@ -21,7 +21,6 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
-  onAdd: () => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
 }
 
@@ -75,7 +74,6 @@ export function AgentList({
   selectedId,
   onSelect,
   onClose,
-  onAdd,
   onReorder,
 }: Props) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -111,17 +109,12 @@ export function AgentList({
 
   return (
     <div style={styles.container}>
-      <div style={styles.header} className="drag-region">
-        <button onClick={onAdd} className="btn-ghost" style={styles.addBtn}>
-          +
-        </button>
-      </div>
+      <div style={styles.header} className="drag-region" />
 
       <div style={styles.list}>
         {agents.length === 0 && (
           <div style={styles.empty}>
-            <span style={styles.emptyIcon}>+</span>
-            <span>Open a directory to begin</span>
+            <span>Cmd+Shift+P to get started</span>
           </div>
         )}
         {agents.map((agent, index) => {
@@ -166,9 +159,6 @@ export function AgentList({
                   )}
                 </span>
                 <span style={styles.repoName}>{agent.customName ?? agent.repoName}</span>
-                {agent.agentType === "codex" && (
-                  <span style={styles.codexBadge}>X</span>
-                )}
                 {agent.ssh && (
                   <span style={styles.sshBadge}>SSH</span>
                 )}
@@ -187,6 +177,12 @@ export function AgentList({
                 </span>
               </div>
               <div style={styles.meta}>
+                <span style={{
+                  ...styles.agentType,
+                  color: agent.agentType === "codex" ? "#ab68ff" : "#c15f3c",
+                }}>
+                  {agent.agentType === "codex" ? "Codex" : "Claude"}
+                </span>
                 {agent.gitBranch && (
                   <span style={styles.branch}>{agent.gitBranch}</span>
                 )}
@@ -221,20 +217,10 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 0,
   },
   header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    padding: "10px 14px 10px 78px",
+    minHeight: 38,
+    padding: "0 14px 0 78px",
     borderBottom: "1px solid var(--border)",
-  },
-  addBtn: {
-    background: "transparent",
-    border: "none",
-    color: "var(--text-muted)",
-    fontSize: 18,
-    fontWeight: 300,
-    lineHeight: 1,
-    padding: "0 4px",
+    flexShrink: 0,
   },
   list: {
     flex: 1,
@@ -249,11 +235,6 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     alignItems: "center",
     gap: 6,
-  },
-  emptyIcon: {
-    fontSize: 20,
-    opacity: 0.4,
-    fontFamily: "var(--font-mono)",
   },
   item: {
     display: "block",
@@ -294,14 +275,9 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1,
     color: "var(--yellow)",
   },
-  codexBadge: {
-    fontSize: 9,
-    fontWeight: 700,
-    color: "var(--green)",
-    background: "rgba(86, 211, 100, 0.1)",
-    padding: "1px 4px",
-    borderRadius: 2,
-    letterSpacing: "0.04em",
+  agentType: {
+    fontSize: 11,
+    fontWeight: 600,
     flexShrink: 0,
   },
   sshBadge: {

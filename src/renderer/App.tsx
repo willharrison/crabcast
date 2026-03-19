@@ -9,7 +9,6 @@ import { destroyTerminal } from "./components/Terminal.js";
 import { SSHConnectModal } from "./components/SSHConnectModal.js";
 import { ResumeSessionModal } from "./components/ResumeSessionModal.js";
 import { CommandPalette } from "./components/CommandPalette.js";
-import { AddAgentModal } from "./components/AddAgentModal.js";
 import type { AgentType, SSHConnection, ClaudeSession } from "../shared/types.js";
 
 type SidebarPanel = "git" | "files" | null;
@@ -22,7 +21,6 @@ export function App() {
   const [showSSHModal, setShowSSHModal] = useState(false);
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
   const [pendingAgentType, setPendingAgentType] = useState<AgentType>("claude");
   const [sidebarPanel, setSidebarPanel] = useState<SidebarPanel>(null);
   const [panelHeight, setPanelHeight] = useState(() => {
@@ -161,14 +159,16 @@ export function App() {
       return null;
     }
 
-    // Detect Claude activity from the window title OSC sequence.
-    // Claude sets its title to things like:
-    //   ]0;⠂ Claude Code   — thinking (braille spinner)
-    //   ]0;✳ Claude Code   — idle
-    // The braille dots (⠂⠈⠐⠠ etc.) and progress bar indicate active work.
-    // ✳ indicates idle. We check the title for non-idle indicators.
+    // Activity detection signals:
+    // 1. Window title OSC: Claude sets braille dots when thinking, ✳ when idle
+    // 2. Alt buffer switch: Claude uses DECSET 1049h
+    // 3. Rapid data bursts: Codex produces many chunks quickly when working,
+    //    vs single-char echoes when user types at idle prompt
     const TITLE_RE = /\x1b\]0;([^\x07]*)\x07/;
     const IDLE_TITLE_CHARS = /^[✳\s]/;
+    const ALT_BUFFER_ENTER = /\x1b\[\?1049h/;
+    const chunkCounts = new Map<string, number>();
+    const chunkTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     const removePtyData = window.electronAPI.onPtyData(({ agentId, data }) => {
       // Append to rolling buffer (keep last 2KB)
@@ -176,7 +176,7 @@ export function App() {
       const updated = (prev + data).slice(-2048);
       outputBuffers.current.set(agentId, updated);
 
-      // Check window title for activity indicators
+      // Signal 1: Window title change (Claude-specific)
       const titleMatch = data.match(TITLE_RE);
       if (titleMatch) {
         const title = titleMatch[1];
@@ -185,6 +185,31 @@ export function App() {
           activeAgents.current.add(agentId);
           patchAgent(agentId, { state: "running", needsAttention: false });
         }
+      }
+
+      // Signal 2: Entering alternate buffer (Claude)
+      if (ALT_BUFFER_ENTER.test(data)) {
+        if (!activeAgents.current.has(agentId)) {
+          activeAgents.current.add(agentId);
+          patchAgent(agentId, { state: "running", needsAttention: false });
+        }
+      }
+
+      // Signal 3: Rapid data bursts (Codex and general).
+      // Count chunks in a 300ms window. Typing produces ~1 chunk per keystroke
+      // at human speed. Active output produces many chunks rapidly.
+      const count = (chunkCounts.get(agentId) ?? 0) + 1;
+      chunkCounts.set(agentId, count);
+      const existingChunkTimer = chunkTimers.get(agentId);
+      if (existingChunkTimer) clearTimeout(existingChunkTimer);
+      chunkTimers.set(agentId, setTimeout(() => {
+        chunkCounts.set(agentId, 0);
+        chunkTimers.delete(agentId);
+      }, 300));
+
+      if (count >= 8 && !activeAgents.current.has(agentId)) {
+        activeAgents.current.add(agentId);
+        patchAgent(agentId, { state: "running", needsAttention: false });
       }
 
       // Reset idle timer — after 500ms of silence, classify the prompt state
@@ -310,7 +335,6 @@ export function App() {
               removeAgent(id);
               if (selectedId === id) setSelectedId(null);
             }}
-            onAdd={() => setShowAddModal(true)}
             onReorder={reorderAgents}
           />
         </div>
@@ -389,15 +413,6 @@ export function App() {
         )}
       </div>
 
-      {showAddModal && (
-        <AddAgentModal
-          onOpenDirectory={(agentType) => { setShowAddModal(false); handleOpenDirectory(agentType); }}
-          onResume={(agentType) => { setShowAddModal(false); setPendingAgentType(agentType); setShowResumeModal(true); }}
-          onSSH={(agentType) => { setShowAddModal(false); setPendingAgentType(agentType); setShowSSHModal(true); }}
-          onClose={() => setShowAddModal(false)}
-        />
-      )}
-
       {showSSHModal && (
         <SSHConnectModal
           onConnect={handleSSHConnect}
@@ -417,8 +432,8 @@ export function App() {
           settings={settings}
           onUpdateSettings={updateSettings}
           onOpenDirectory={handleOpenDirectory}
-          onResume={() => setShowResumeModal(true)}
-          onSSH={() => setShowSSHModal(true)}
+          onResume={(agentType) => { setPendingAgentType(agentType); setShowResumeModal(true); }}
+          onSSH={(agentType) => { setPendingAgentType(agentType); setShowSSHModal(true); }}
           onClose={() => setShowCommandPalette(false)}
           selectedAgent={selectedAgent}
           onRenameAgent={handleRenameAgent}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { AppSettings, AgentInfo } from "../../shared/types.js";
+import type { AppSettings, AgentInfo, AgentType } from "../../shared/types.js";
 
 interface Command {
   id: string;
@@ -8,19 +8,30 @@ interface Command {
   action: () => void;
 }
 
+interface SelectOption {
+  id: string;
+  label: string;
+  description?: string;
+}
+
 interface Props {
   settings: AppSettings;
   onUpdateSettings: (patch: Partial<AppSettings>) => void;
-  onOpenDirectory: () => void;
-  onResume: () => void;
-  onSSH: () => void;
+  onOpenDirectory: (agentType: AgentType) => void;
+  onResume: (agentType: AgentType) => void;
+  onSSH: (agentType: AgentType) => void;
   onClose: () => void;
   selectedAgent: AgentInfo | null;
   onRenameAgent: (id: string, name: string) => void;
   onResetAgentName: (id: string) => void;
 }
 
-type Mode = "commands" | "input";
+type Mode = "commands" | "input" | "select";
+
+const AGENT_TYPE_OPTIONS: SelectOption[] = [
+  { id: "claude", label: "Claude", description: "Anthropic Claude Code CLI" },
+  { id: "codex", label: "Codex", description: "OpenAI Codex CLI" },
+];
 
 export function CommandPalette({ settings, onUpdateSettings, onOpenDirectory, onResume, onSSH, onClose, selectedAgent, onRenameAgent, onResetAgentName }: Props) {
   const [filter, setFilter] = useState("");
@@ -29,24 +40,51 @@ export function CommandPalette({ settings, onUpdateSettings, onOpenDirectory, on
   const [inputLabel, setInputLabel] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [inputHandler, setInputHandler] = useState<((val: string) => void) | null>(null);
+  const [selectLabel, setSelectLabel] = useState("");
+  const [selectOptions, setSelectOptions] = useState<SelectOption[]>([]);
+  const [selectHandler, setSelectHandler] = useState<((id: string) => void) | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const enterSelect = (label: string, options: SelectOption[], handler: (id: string) => void) => {
+    setMode("select");
+    setSelectLabel(label);
+    setSelectOptions(options);
+    setSelectHandler(() => handler);
+    setFilter("");
+    setSelectedIndex(0);
+  };
 
   const commands: Command[] = [
     {
       id: "open-directory",
       label: "Agent: Open Directory",
-      action: () => { onClose(); onOpenDirectory(); },
+      action: () => {
+        enterSelect("Open Directory", AGENT_TYPE_OPTIONS, (id) => {
+          onClose();
+          onOpenDirectory(id as AgentType);
+        });
+      },
     },
     {
       id: "resume-session",
       label: "Agent: Resume Session",
-      action: () => { onClose(); onResume(); },
+      action: () => {
+        enterSelect("Resume Session", AGENT_TYPE_OPTIONS, (id) => {
+          onClose();
+          onResume(id as AgentType);
+        });
+      },
     },
     {
       id: "ssh-remote",
       label: "Agent: SSH Remote",
-      action: () => { onClose(); onSSH(); },
+      action: () => {
+        enterSelect("SSH Remote", AGENT_TYPE_OPTIONS, (id) => {
+          onClose();
+          onSSH(id as AgentType);
+        });
+      },
     },
     {
       id: "terminal-font-size",
@@ -106,9 +144,15 @@ export function CommandPalette({ settings, onUpdateSettings, onOpenDirectory, on
     ] : []),
   ];
 
-  const filtered = filter
-    ? commands.filter((c) => c.label.toLowerCase().includes(filter.toLowerCase()))
-    : commands;
+  const filtered = mode === "commands"
+    ? (filter
+        ? commands.filter((c) => c.label.toLowerCase().includes(filter.toLowerCase()))
+        : commands)
+    : mode === "select"
+      ? (filter
+          ? selectOptions.filter((o) => o.label.toLowerCase().includes(filter.toLowerCase()))
+          : selectOptions)
+      : [];
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -125,9 +169,10 @@ export function CommandPalette({ settings, onUpdateSettings, onOpenDirectory, on
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (mode === "input") {
+        if (mode === "input" || mode === "select") {
           setMode("commands");
           setFilter("");
+          setSelectedIndex(0);
         } else {
           onClose();
         }
@@ -149,10 +194,15 @@ export function CommandPalette({ settings, onUpdateSettings, onOpenDirectory, on
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        filtered[selectedIndex]?.action();
+        if (mode === "commands") {
+          (filtered[selectedIndex] as Command | undefined)?.action();
+        } else if (mode === "select" && selectHandler) {
+          const opt = filtered[selectedIndex] as SelectOption | undefined;
+          if (opt) selectHandler(opt.id);
+        }
       }
     },
-    [mode, filtered, selectedIndex, inputHandler, inputValue, onClose]
+    [mode, filtered, selectedIndex, inputHandler, inputValue, selectHandler, onClose]
   );
 
   useEffect(() => {
@@ -177,7 +227,7 @@ export function CommandPalette({ settings, onUpdateSettings, onOpenDirectory, on
               {filtered.length === 0 ? (
                 <div style={styles.empty}>No matching commands</div>
               ) : (
-                filtered.map((cmd, i) => (
+                (filtered as Command[]).map((cmd, i) => (
                   <div
                     key={cmd.id}
                     className="palette-item"
@@ -192,6 +242,46 @@ export function CommandPalette({ settings, onUpdateSettings, onOpenDirectory, on
                     <span style={styles.itemLabel}>{cmd.label}</span>
                     {cmd.description && (
                       <span style={styles.itemDesc}>{cmd.description}</span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        ) : mode === "select" ? (
+          <>
+            <div style={styles.breadcrumb}>
+              <span style={styles.breadcrumbLabel}>{selectLabel}</span>
+              <span style={styles.breadcrumbChevron}>&gt;</span>
+            </div>
+            <input
+              ref={inputRef}
+              style={styles.input}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Pick an option..."
+              autoFocus
+            />
+            <div ref={listRef} style={styles.list}>
+              {filtered.length === 0 ? (
+                <div style={styles.empty}>No matching options</div>
+              ) : (
+                (filtered as SelectOption[]).map((opt, i) => (
+                  <div
+                    key={opt.id}
+                    className="palette-item"
+                    style={{
+                      ...styles.item,
+                      background:
+                        i === selectedIndex ? "var(--bg-highlight)" : "transparent",
+                    }}
+                    onMouseEnter={() => setSelectedIndex(i)}
+                    onClick={() => selectHandler?.(opt.id)}
+                  >
+                    <span style={styles.itemLabel}>{opt.label}</span>
+                    {opt.description && (
+                      <span style={styles.itemDesc}>{opt.description}</span>
                     )}
                   </div>
                 ))
@@ -237,6 +327,22 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     alignSelf: "flex-start",
+  },
+  breadcrumb: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "10px 16px 0",
+  },
+  breadcrumbLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+  },
+  breadcrumbChevron: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+    opacity: 0.6,
   },
   input: {
     width: "100%",
