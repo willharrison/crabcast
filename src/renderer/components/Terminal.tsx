@@ -170,6 +170,18 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
     if (!entry.opened) {
       entry.opened = true;
       entry.term.open(container);
+
+      // Prevent the browser from scrolling any parent element when
+      // the terminal or its children receive focus
+      container.addEventListener("focus", (e) => {
+        e.preventDefault();
+      }, { capture: true });
+
+      // Prevent scrollIntoView behavior on the xterm screen element
+      const screen = container.querySelector(".xterm-screen");
+      if (screen) {
+        (screen as HTMLElement).style.overflow = "hidden";
+      }
     }
 
     requestAnimationFrame(() => {

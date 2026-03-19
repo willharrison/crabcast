@@ -23,6 +23,8 @@ jobs:
 
       - name: Build
         run: npx electron-forge make --arch=arm64
+        env:
+          VITE_BUILD_CHANNEL: dev
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

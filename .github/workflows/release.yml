@@ -39,6 +39,7 @@ jobs:
         run: npx electron-forge make --arch=${{ matrix.arch }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_BUILD_CHANNEL: release
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

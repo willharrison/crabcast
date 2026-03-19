@@ -14,6 +14,8 @@ import type { SSHConnection, ClaudeSession } from "../shared/types.js";
 
 type SidebarPanel = "git" | "files" | null;
 
+const BUILD_CHANNEL = (import.meta.env.VITE_BUILD_CHANNEL as string) || "local";
+
 export function App() {
   const { agents, createAgent, stopAgent, removeAgent, patchAgent, reorderAgents } = useAgents();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -337,6 +339,12 @@ export function App() {
         )}
       </div>
 
+      {BUILD_CHANNEL !== "release" && (
+        <div style={styles.buildBar}>
+          {BUILD_CHANNEL} build
+        </div>
+      )}
+
       {showSSHModal && (
         <SSHConnectModal
           onConnect={handleSSHConnect}
@@ -472,4 +480,20 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     opacity: 0.6,
   },
+  buildBar: {
+    position: "fixed",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: "2px 0",
+    background: BUILD_CHANNEL === "local" ? "var(--yellow)" : "var(--accent)",
+    color: BUILD_CHANNEL === "local" ? "#0a0c10" : "#0a0c10",
+    fontSize: 10,
+    fontWeight: 600,
+    textAlign: "center",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    zIndex: 300,
+    pointerEvents: "none",
+  } as React.CSSProperties,
 };
