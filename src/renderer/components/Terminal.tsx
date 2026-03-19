@@ -138,30 +138,6 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       window.electronAPI.ptySpawn(agentId, cwd, ssh, sessionId);
     }
 
-    // Handle image / file drag-and-drop on the outer wrapper so it isn't
-    // blocked by xterm's internal DOM layers
-    const outer = container.parentElement;
-    const handleDragOver = (e: DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-    };
-    const handleDrop = (e: DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const files = e.dataTransfer?.files;
-      if (!files || files.length === 0) return;
-      for (const file of Array.from(files)) {
-        const filePath = (file as any).path as string | undefined;
-        if (filePath) {
-          window.electronAPI.ptyWrite(agentId, filePath);
-        }
-      }
-    };
-    if (outer) {
-      outer.addEventListener("dragover", handleDragOver);
-      outer.addEventListener("drop", handleDrop);
-    }
-
     // Fit on window resize only — not on content changes.
     // Using window resize event instead of ResizeObserver to avoid
     // scroll-to-top issues caused by fit() firing during output flow.
@@ -182,10 +158,6 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       removePtySessionId();
       window.removeEventListener("resize", handleWindowResize);
       if (resizeTimer) clearTimeout(resizeTimer);
-      if (outer) {
-        outer.removeEventListener("dragover", handleDragOver);
-        outer.removeEventListener("drop", handleDrop);
-      }
     };
     // Only run on mount — terminal stays alive for the lifetime of the agent
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -202,6 +174,35 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
     if (!entry.opened) {
       entry.opened = true;
       entry.term.open(container);
+
+      // Override scrollIntoView on xterm's hidden textarea.
+      // The browser calls this on focus/input which scrolls parent containers.
+      const textarea = container.querySelector(".xterm-helper-textarea");
+      if (textarea) {
+        (textarea as any).scrollIntoView = () => {};
+      }
+
+      // Attach drag-and-drop to the xterm-screen element which covers the terminal
+      const screen = container.querySelector(".xterm-screen") as HTMLElement | null;
+      const dropTarget = screen || container;
+      const handleDragOver = (e: Event) => {
+        e.preventDefault();
+        (e as DragEvent).dataTransfer!.dropEffect = "copy";
+      };
+      const handleDrop = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const files = (e as DragEvent).dataTransfer?.files;
+        if (!files || files.length === 0) return;
+        for (const file of Array.from(files)) {
+          const filePath = (file as any).path as string | undefined;
+          if (filePath) {
+            window.electronAPI.ptyWrite(agentId, filePath);
+          }
+        }
+      };
+      dropTarget.addEventListener("dragover", handleDragOver);
+      dropTarget.addEventListener("drop", handleDrop);
     }
 
     requestAnimationFrame(() => {
