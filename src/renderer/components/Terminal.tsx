@@ -3,13 +3,14 @@ import { Terminal as XTerm } from "xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "xterm/css/xterm.css";
-import type { AgentId, SSHConnection } from "../../shared/types.js";
+import type { AgentId, AgentType, SSHConnection } from "../../shared/types.js";
 
 interface Props {
   agentId: AgentId;
   cwd: string;
   ssh?: SSHConnection;
   sessionId?: string;
+  agentType?: AgentType;
   fontSize?: number;
   visible: boolean;
 }
@@ -47,7 +48,7 @@ const terminalCache = new Map<string, {
   opened: boolean;
 }>();
 
-export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible }: Props) {
+export function Terminal({ agentId, cwd, ssh, sessionId, agentType, fontSize = 13, visible }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
@@ -80,9 +81,11 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       // xterm.js sends \r for both Enter and Shift+Enter by default.
       // Claude CLI expects \x1b[13;2u (CSI u Shift+Enter) for newline in input.
       term.attachCustomKeyEventHandler((e) => {
-        if (e.type === "keydown" && e.key === "Enter" && e.shiftKey) {
-          window.electronAPI.ptyWrite(agentId, "\x1b[13;2u");
-          return false;
+        if (e.key === "Enter" && e.shiftKey) {
+          if (e.type === "keydown") {
+            window.electronAPI.ptyWrite(agentId, "\x1b[13;2u");
+          }
+          return false; // suppress for both keydown and keyup
         }
         return true;
       });
@@ -125,7 +128,7 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
     // Spawn PTY immediately so the agent starts working in the background
     if (!entry.spawned) {
       entry.spawned = true;
-      window.electronAPI.ptySpawn(agentId, cwd, ssh, sessionId);
+      window.electronAPI.ptySpawn(agentId, cwd, ssh, sessionId, agentType);
     }
 
     // ResizeObserver for container size changes (window resize, sidebar toggle).

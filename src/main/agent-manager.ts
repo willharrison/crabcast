@@ -54,6 +54,7 @@ export class AgentManager {
       state: "idle",
       createdAt: Date.now(),
       ssh: opts.ssh,
+      agentType: opts.agentType,
     };
 
     // Pre-fill git info

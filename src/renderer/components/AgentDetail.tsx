@@ -45,6 +45,7 @@ export function AgentDetail({ agents, selectedAgent, terminalFontSize }: Props) 
           cwd={agent.cwd}
           ssh={agent.ssh}
           sessionId={agent.sessionId}
+          agentType={agent.agentType}
           fontSize={terminalFontSize}
           visible={selectedAgent?.id === agent.id}
         />

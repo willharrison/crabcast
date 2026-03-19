@@ -16,7 +16,7 @@ const api: ElectronAPI = {
   getGitFileStatuses: (cwd) => ipcRenderer.invoke(IPC.GIT_FILE_STATUSES, cwd),
   openExternal: (url) => ipcRenderer.invoke(IPC.OPEN_EXTERNAL, url),
 
-  ptySpawn: (agentId, cwd, ssh, resumeSessionId) => ipcRenderer.invoke(IPC.PTY_SPAWN, agentId, cwd, ssh, resumeSessionId),
+  ptySpawn: (agentId, cwd, ssh, resumeSessionId, agentType) => ipcRenderer.invoke(IPC.PTY_SPAWN, agentId, cwd, ssh, resumeSessionId, agentType),
   ptyWrite: (agentId, data) => ipcRenderer.invoke(IPC.PTY_WRITE, agentId, data),
   ptyResize: (agentId, cols, rows) => ipcRenderer.invoke(IPC.PTY_RESIZE, agentId, cols, rows),
   ptyKill: (agentId) => ipcRenderer.invoke(IPC.PTY_KILL, agentId),

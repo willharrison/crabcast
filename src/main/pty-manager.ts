@@ -1,6 +1,6 @@
 import * as pty from "node-pty";
 import type { BrowserWindow } from "electron";
-import type { AgentId, SSHConnection } from "../shared/types.js";
+import type { AgentId, AgentType, SSHConnection } from "../shared/types.js";
 import { IPC } from "../shared/types.js";
 
 interface PtySession {
@@ -20,10 +20,11 @@ export class PtyManager {
    * Spawn an interactive claude CLI session in a real PTY.
    * The renderer connects an xterm.js terminal to this PTY via IPC.
    */
-  spawn(agentId: AgentId, cwd: string, ssh?: SSHConnection, resumeSessionId?: string): void {
+  spawn(agentId: AgentId, cwd: string, ssh?: SSHConnection, resumeSessionId?: string, agentType?: AgentType): void {
     // Kill existing session if any
     this.kill(agentId);
 
+    const cli = agentType === "codex" ? "codex" : "claude";
     let shell: string;
     let args: string[];
 
@@ -37,20 +38,24 @@ export class PtyManager {
         args.push("-p", String(ssh.port));
       }
       args.push(`${ssh.user}@${ssh.host}`);
-      // Start claude in the remote directory.
+      // Start the CLI in the remote directory.
       // Use a login shell so the user's PATH (from .bashrc/.zshrc/.profile) is loaded —
       // without this, tools installed via npm/pip won't be found.
       const escapedCwd = cwd.replace(/'/g, "'\\''");
-      const resumeFlag = resumeSessionId ? ` --resume '${resumeSessionId}'` : "";
-      args.push(`bash -l -c 'cd ${escapedCwd} && claude${resumeFlag}'`);
+      const resumeFlag = resumeSessionId
+        ? (agentType === "codex" ? ` resume '${resumeSessionId}'` : ` --resume '${resumeSessionId}'`)
+        : "";
+      args.push(`bash -l -c 'cd ${escapedCwd} && ${cli}${resumeFlag}'`);
     } else {
       // Use an interactive login shell so the user's full PATH is loaded.
       // Packaged Electron apps get a minimal environment from macOS —
       // -l loads .zprofile, -i loads .zshrc/.bashrc where PATH is usually set.
-      const resumeFlag = resumeSessionId ? ` --resume '${resumeSessionId}'` : "";
+      const resumeFlag = resumeSessionId
+        ? (agentType === "codex" ? ` resume '${resumeSessionId}'` : ` --resume '${resumeSessionId}'`)
+        : "";
       const escapedCwd = cwd.replace(/'/g, "'\\''");
       shell = process.env.SHELL || "/bin/zsh";
-      args = ["-l", "-i", "-c", `cd '${escapedCwd}' && claude${resumeFlag}`];
+      args = ["-l", "-i", "-c", `cd '${escapedCwd}' && ${cli}${resumeFlag}`];
     }
 
     const ptyProcess = pty.spawn(shell, args, {

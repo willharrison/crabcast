@@ -9,8 +9,8 @@ import { destroyTerminal } from "./components/Terminal.js";
 import { SSHConnectModal } from "./components/SSHConnectModal.js";
 import { ResumeSessionModal } from "./components/ResumeSessionModal.js";
 import { CommandPalette } from "./components/CommandPalette.js";
-import { AddAgentMenu } from "./components/AddAgentMenu.js";
-import type { SSHConnection, ClaudeSession } from "../shared/types.js";
+import { AddAgentModal } from "./components/AddAgentModal.js";
+import type { AgentType, SSHConnection, ClaudeSession } from "../shared/types.js";
 
 type SidebarPanel = "git" | "files" | null;
 
@@ -22,7 +22,8 @@ export function App() {
   const [showSSHModal, setShowSSHModal] = useState(false);
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [pendingAgentType, setPendingAgentType] = useState<AgentType>("claude");
   const [sidebarPanel, setSidebarPanel] = useState<SidebarPanel>(null);
   const [panelHeight, setPanelHeight] = useState(() => {
     const saved = localStorage.getItem("panelHeight");
@@ -86,16 +87,16 @@ export function App() {
     if (updated) patchAgent(id, { customName: undefined });
   };
 
-  const handleOpenDirectory = async () => {
+  const handleOpenDirectory = async (agentType: AgentType = "claude") => {
     const dir = await window.electronAPI.openDirectoryDialog();
     if (!dir) return;
-    const info = await createAgent({ cwd: dir });
+    const info = await createAgent({ cwd: dir, agentType });
     setSelectedId(info.id);
   };
 
   const handleResumeSession = async (session: ClaudeSession) => {
     setShowResumeModal(false);
-    const info = await createAgent({ cwd: session.cwd });
+    const info = await createAgent({ cwd: session.cwd, agentType: pendingAgentType });
     await window.electronAPI.updateAgentSession(info.id, session.sessionId);
     patchAgent(info.id, { sessionId: session.sessionId });
     setSelectedId(info.id);
@@ -103,7 +104,7 @@ export function App() {
 
   const handleSSHConnect = async (conn: SSHConnection, remotePath: string) => {
     setShowSSHModal(false);
-    const info = await createAgent({ cwd: remotePath, ssh: conn });
+    const info = await createAgent({ cwd: remotePath, ssh: conn, agentType: pendingAgentType });
     setSelectedId(info.id);
   };
 
@@ -309,17 +310,9 @@ export function App() {
               removeAgent(id);
               if (selectedId === id) setSelectedId(null);
             }}
-            onAdd={() => setShowAddMenu((v) => !v)}
+            onAdd={() => setShowAddModal(true)}
             onReorder={reorderAgents}
           />
-          {showAddMenu && (
-            <AddAgentMenu
-              onOpenDirectory={() => { setShowAddMenu(false); handleOpenDirectory(); }}
-              onResume={() => { setShowAddMenu(false); setShowResumeModal(true); }}
-              onSSH={() => { setShowAddMenu(false); setShowSSHModal(true); }}
-              onClose={() => setShowAddMenu(false)}
-            />
-          )}
         </div>
 
         {/* Bottom panel — Git or Files */}
@@ -395,6 +388,15 @@ export function App() {
           </div>
         )}
       </div>
+
+      {showAddModal && (
+        <AddAgentModal
+          onOpenDirectory={(agentType) => { setShowAddModal(false); handleOpenDirectory(agentType); }}
+          onResume={(agentType) => { setShowAddModal(false); setPendingAgentType(agentType); setShowResumeModal(true); }}
+          onSSH={(agentType) => { setShowAddModal(false); setPendingAgentType(agentType); setShowSSHModal(true); }}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
 
       {showSSHModal && (
         <SSHConnectModal

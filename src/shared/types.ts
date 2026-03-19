@@ -2,6 +2,8 @@ export type AgentId = string;
 
 export type AgentState = "idle" | "running" | "stopped" | "error";
 
+export type AgentType = "claude" | "codex";
+
 export interface SSHConnection {
   user: string;
   host: string;
@@ -20,11 +22,13 @@ export interface AgentInfo {
   gitDirty?: boolean;
   ssh?: SSHConnection;
   needsAttention?: boolean;
+  agentType?: AgentType;
 }
 
 export interface CreateAgentOpts {
   cwd: string;
   ssh?: SSHConnection;
+  agentType?: AgentType;
 }
 
 export interface GitInfo {
@@ -124,7 +128,7 @@ export interface ElectronAPI {
   sshGetRecentConnections: () => Promise<SSHConnection[]>;
   sshGetGitInfo: (conn: SSHConnection, cwd: string) => Promise<GitInfo | null>;
 
-  ptySpawn: (agentId: AgentId, cwd: string, ssh?: SSHConnection, resumeSessionId?: string) => Promise<void>;
+  ptySpawn: (agentId: AgentId, cwd: string, ssh?: SSHConnection, resumeSessionId?: string, agentType?: AgentType) => Promise<void>;
   ptyWrite: (agentId: AgentId, data: string) => Promise<void>;
   ptyResize: (agentId: AgentId, cols: number, rows: number) => Promise<void>;
   ptyKill: (agentId: AgentId) => Promise<void>;

@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { IPC } from "../shared/types.js";
-import type { AgentId, SSHConnection, ClaudeSession, CreateAgentOpts } from "../shared/types.js";
+import type { AgentId, AgentType, SSHConnection, ClaudeSession, CreateAgentOpts } from "../shared/types.js";
 import { AgentManager } from "./agent-manager.js";
 import { PtyManager } from "./pty-manager.js";
 import { getGitInfo, getGitRemoteUrl, getGitFileStatuses } from "./git-service.js";
@@ -59,8 +59,8 @@ export function registerIpcHandlers(
   mainWindow: BrowserWindow
 ): void {
   // --- PTY handlers ---
-  ipcMain.handle(IPC.PTY_SPAWN, (_event, agentId: string, cwd: string, ssh?: SSHConnection, resumeSessionId?: string) =>
-    ptyManager.spawn(agentId, cwd, ssh, resumeSessionId)
+  ipcMain.handle(IPC.PTY_SPAWN, (_event, agentId: string, cwd: string, ssh?: SSHConnection, resumeSessionId?: string, agentType?: AgentType) =>
+    ptyManager.spawn(agentId, cwd, ssh, resumeSessionId, agentType)
   );
 
   ipcMain.handle(IPC.PTY_WRITE, (_event, agentId: string, data: string) =>

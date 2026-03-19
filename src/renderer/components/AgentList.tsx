@@ -166,6 +166,9 @@ export function AgentList({
                   )}
                 </span>
                 <span style={styles.repoName}>{agent.customName ?? agent.repoName}</span>
+                {agent.agentType === "codex" && (
+                  <span style={styles.codexBadge}>X</span>
+                )}
                 {agent.ssh && (
                   <span style={styles.sshBadge}>SSH</span>
                 )}
@@ -290,6 +293,16 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     lineHeight: 1,
     color: "var(--yellow)",
+  },
+  codexBadge: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: "var(--green)",
+    background: "rgba(86, 211, 100, 0.1)",
+    padding: "1px 4px",
+    borderRadius: 2,
+    letterSpacing: "0.04em",
+    flexShrink: 0,
   },
   sshBadge: {
     fontSize: 9,
