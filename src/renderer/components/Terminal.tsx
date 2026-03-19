@@ -127,16 +127,28 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       window.electronAPI.ptySpawn(agentId, cwd, ssh, sessionId);
     }
 
-    // Fit on window resize only — not on content changes.
-    // Using window resize event instead of ResizeObserver to avoid
-    // scroll-to-top issues caused by fit() firing during output flow.
+    // ResizeObserver for container size changes (window resize, sidebar toggle).
+    // Only fit when dimensions actually change and terminal is visible.
+    let lastW = 0, lastH = 0;
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-    const handleWindowResize = () => {
+    const resizeObserver = new ResizeObserver((entries) => {
       if (!visibleRef.current) return;
+      const { width, height } = entries[0].contentRect;
+      // Ignore sub-pixel changes — only fit on real resizes
+      if (Math.round(width) === Math.round(lastW) && Math.round(height) === Math.round(lastH)) return;
+      lastW = width;
+      lastH = height;
       if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => fit.fit(), 100);
-    };
-    window.addEventListener("resize", handleWindowResize);
+      resizeTimer = setTimeout(() => {
+        const scrollBefore = term.buffer.active.viewportY;
+        fit.fit();
+        // Restore scroll position if fit() moved it
+        if (term.buffer.active.viewportY !== scrollBefore) {
+          term.scrollLines(scrollBefore - term.buffer.active.viewportY);
+        }
+      }, 100);
+    });
+    resizeObserver.observe(container);
 
     return () => {
       dataDisposable.dispose();
@@ -144,7 +156,7 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       removePtyData();
       removePtyExit();
       removePtySessionId();
-      window.removeEventListener("resize", handleWindowResize);
+      resizeObserver.disconnect();
       if (resizeTimer) clearTimeout(resizeTimer);
     };
     // Only run on mount — terminal stays alive for the lifetime of the agent
