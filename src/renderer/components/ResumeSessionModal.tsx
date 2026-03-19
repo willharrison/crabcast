@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { ClaudeSession } from "../../shared/types.js";
 
 interface Props {
@@ -10,6 +10,8 @@ export function ResumeSessionModal({ onResume, onClose }: Props) {
   const [sessions, setSessions] = useState<ClaudeSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     window.electronAPI.listClaudeSessions().then((s) => {
@@ -17,14 +19,6 @@ export function ResumeSessionModal({ onResume, onClose }: Props) {
       setLoading(false);
     });
   }, []);
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
 
   const filtered = filter
     ? sessions.filter((s) => s.cwd.toLowerCase().includes(filter.toLowerCase()))
@@ -40,6 +34,39 @@ export function ResumeSessionModal({ onResume, onClose }: Props) {
       grouped.set(s.cwd, [s]);
     }
   }
+
+  // Flat list for keyboard navigation
+  const flatSessions = Array.from(grouped.values()).flat();
+
+  // Reset selection when filter changes
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filter]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.min(i + 1, flatSessions.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter" && flatSessions.length > 0) {
+        e.preventDefault();
+        onResume(flatSessions[selectedIndex]);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    },
+    [flatSessions, selectedIndex, onResume, onClose]
+  );
+
+  // Scroll selected item into view
+  useEffect(() => {
+    const item = listRef.current?.querySelector(`[data-index="${selectedIndex}"]`);
+    item?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
 
   const formatTime = (ms: number) => {
     const d = new Date(ms);
@@ -66,36 +93,48 @@ export function ResumeSessionModal({ onResume, onClose }: Props) {
             style={styles.filterInput}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Filter by directory..."
             autoFocus
           />
         </div>
 
-        <div style={styles.list}>
+        <div style={styles.list} ref={listRef}>
           {loading ? (
             <div style={styles.empty}>Loading sessions...</div>
           ) : filtered.length === 0 ? (
             <div style={styles.empty}>No sessions found</div>
           ) : (
-            Array.from(grouped.entries()).map(([cwd, cwdSessions]) => (
-              <div key={cwd}>
-                <div style={styles.cwdHeader}>
-                  {cwd.split("/").pop() || cwd}
-                  <span style={styles.cwdPath}>{cwd}</span>
+            (() => {
+              let flatIdx = 0;
+              return Array.from(grouped.entries()).map(([cwd, cwdSessions]) => (
+                <div key={cwd}>
+                  <div style={styles.cwdHeader}>
+                    {cwd.split("/").pop() || cwd}
+                    <span style={styles.cwdPath}>{cwd}</span>
+                  </div>
+                  {cwdSessions.map((s) => {
+                    const idx = flatIdx++;
+                    return (
+                      <button
+                        key={s.sessionId}
+                        data-index={idx}
+                        className="sidebar-item"
+                        style={{
+                          ...styles.sessionItem,
+                          ...(idx === selectedIndex ? styles.sessionItemSelected : {}),
+                        }}
+                        onClick={() => onResume(s)}
+                        onMouseEnter={() => setSelectedIndex(idx)}
+                      >
+                        <span style={styles.sessionId}>{s.sessionId.slice(0, 8)}</span>
+                        <span style={styles.sessionTime}>{formatTime(s.modifiedAt)}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                {cwdSessions.map((s) => (
-                  <button
-                    key={s.sessionId}
-                    className="sidebar-item"
-                    style={styles.sessionItem}
-                    onClick={() => onResume(s)}
-                  >
-                    <span style={styles.sessionId}>{s.sessionId.slice(0, 8)}</span>
-                    <span style={styles.sessionTime}>{formatTime(s.modifiedAt)}</span>
-                  </button>
-                ))}
-              </div>
-            ))
+              ));
+            })()
           )}
         </div>
       </div>
@@ -207,6 +246,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "var(--font-mono)",
     color: "var(--accent)",
     fontSize: 12,
+  },
+  sessionItemSelected: {
+    background: "var(--bg-tertiary)",
   },
   sessionTime: {
     fontSize: 11,

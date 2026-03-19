@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell, type BrowserWindow } from "electron";
+import { ipcMain, dialog, shell, app, type BrowserWindow } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -214,5 +214,12 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC.AGENT_RESET_NAME, (_event, agentId: string) =>
     agentManager.resetAgentName(agentId)
   );
+
+  // Dock badge (macOS)
+  ipcMain.on(IPC.DOCK_BADGE, (_event, text: string) => {
+    if (process.platform === "darwin" && app.dock) {
+      app.dock.setBadge(text);
+    }
+  });
 
 }

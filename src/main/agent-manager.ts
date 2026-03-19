@@ -15,6 +15,7 @@ import { loadState, saveState } from "./store.js";
 interface StoredAgent {
   info: AgentInfo;
   watchers?: fs.FSWatcher[];
+  pollTimer?: ReturnType<typeof setInterval>;
 }
 
 export class AgentManager {
@@ -124,6 +125,9 @@ export class AgentManager {
     } catch { /* no refs yet */ }
 
     stored.watchers = watchers;
+
+    // Poll as backup — fs.watch can miss events on macOS
+    stored.pollTimer = setInterval(refresh, 10_000);
   }
 
   stopAgent(id: AgentId): void {
@@ -137,8 +141,9 @@ export class AgentManager {
 
   removeAgent(id: AgentId): void {
     const agent = this.agents.get(id);
-    if (agent?.watchers) {
-      for (const w of agent.watchers) w.close();
+    if (agent) {
+      if (agent.watchers) for (const w of agent.watchers) w.close();
+      if (agent.pollTimer) clearInterval(agent.pollTimer);
     }
     this.agents.delete(id);
     this.persist();

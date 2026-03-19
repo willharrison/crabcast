@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Terminal as XTerm } from "xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import "xterm/css/xterm.css";
 import type { AgentId, SSHConnection } from "../../shared/types.js";
 
@@ -71,12 +72,29 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
 
       const fit = new FitAddon();
       term.loadAddon(fit);
+      term.loadAddon(new WebLinksAddon());
+
+      // Intercept Shift+Enter to send CSI u sequence for multi-line input.
+      // xterm.js sends \r for both Enter and Shift+Enter by default.
+      term.attachCustomKeyEventHandler((e) => {
+        if (e.type === "keydown" && e.key === "Enter" && e.shiftKey) {
+          window.electronAPI.ptyWrite(agentId, "\x1b[13;2u");
+          return false;
+        }
+        return true;
+      });
 
       entry = { term, fit, spawned: false, opened: false };
       terminalCache.set(agentId, entry);
     }
 
     const { term, fit } = entry;
+
+    // When Claude CLI exits alternate buffer (Esc, submitting input), xterm
+    // restores the normal buffer at whatever scroll position it had. Snap to bottom.
+    const bufferDisposable = term.buffer.onBufferChange(() => {
+      term.scrollToBottom();
+    });
 
     // Wire up data and resize to PTY
     const dataDisposable = term.onData((data) => {
@@ -87,10 +105,17 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       window.electronAPI.ptyResize(agentId, cols, rows);
     });
 
-    // Listen for PTY output
+    // Listen for PTY output.
+    // If the user is at the bottom, keep them there after the write.
+    // When the scrollback buffer is full, line eviction can shift the viewport;
+    // this corrects it without interfering if the user scrolled up manually.
     const removePtyData = window.electronAPI.onPtyData(({ agentId: id, data }) => {
       if (id === agentId) {
-        term.write(data);
+        const viewport = term.buffer.active;
+        const atBottom = viewport.baseY + term.rows >= viewport.length;
+        term.write(data, () => {
+          if (atBottom) term.scrollToBottom();
+        });
       }
     });
 
@@ -145,6 +170,7 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
     window.addEventListener("resize", handleWindowResize);
 
     return () => {
+      bufferDisposable.dispose();
       dataDisposable.dispose();
       resizeDisposable.dispose();
       removePtyData();
@@ -170,22 +196,6 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
     if (!entry.opened) {
       entry.opened = true;
       entry.term.open(container);
-
-      // xterm's hidden textarea calls scrollIntoView when it receives focus
-      // or input, which can scroll parent containers. Override it.
-      const textarea = container.querySelector(".xterm-helper-textarea");
-      if (textarea) {
-        (textarea as HTMLElement).scrollIntoView = () => {};
-      }
-
-      // Also prevent any focusable element inside xterm from triggering scroll
-      const observer = new MutationObserver(() => {
-        const ta = container.querySelector(".xterm-helper-textarea");
-        if (ta) {
-          (ta as any).scrollIntoView = () => {};
-        }
-      });
-      observer.observe(container, { childList: true, subtree: true });
     }
 
     requestAnimationFrame(() => {

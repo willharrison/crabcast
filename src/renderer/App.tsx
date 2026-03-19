@@ -38,25 +38,42 @@ export function App() {
     localStorage.setItem("panelHeight", String(panelHeight));
   }, [panelHeight]);
 
-  // System notifications when agents need attention and window is not focused
+  // System notifications + dock badge when agents need attention
   useEffect(() => {
-    if (!settings.notifications) return;
+    const attentionSet = new Set<string>();
+
+    const updateBadge = () => {
+      window.electronAPI.setDockBadge(attentionSet.size > 0 ? "!" : "");
+    };
 
     const unsub = window.electronAPI.onAgentStateChanged((info) => {
+      // Track which agents need attention for dock badge
+      if (info.needsAttention) {
+        attentionSet.add(info.id);
+      } else {
+        attentionSet.delete(info.id);
+      }
+      updateBadge();
+
+      if (!settings.notifications) return;
+
       if (!document.hasFocus() && info.needsAttention) {
         new Notification("Agent needs attention", {
           body: `${info.customName ?? info.repoName} is waiting for input`,
         });
       }
       if (!document.hasFocus() && info.state === "idle" && !info.needsAttention) {
-        // Agent finished
         new Notification("Agent finished", {
           body: `${info.customName ?? info.repoName} has completed`,
         });
       }
     });
 
-    return unsub;
+    return () => {
+      unsub();
+      // Clear badge on cleanup
+      window.electronAPI.setDockBadge("");
+    };
   }, [settings.notifications]);
 
   const handleRenameAgent = async (id: string, name: string) => {
@@ -130,13 +147,17 @@ export function App() {
     // Detect Claude's interactive permission menu by matching the ❯ selector
     // character followed by a numbered option. This only appears in the
     // rendered interactive prompt, never in code or conversation text.
-    const WAITING_PATTERNS = [
-      /❯\s*\d\.\s*Yes/,                 // The ❯ selector on a numbered Yes option
-    ];
+    const PERMISSION_RE = /❯\s*\d\.\s*Yes/;
 
-    function isWaitingForInput(buffer: string): boolean {
+    // Detect Claude's idle input prompt — ❯ at the end of output not followed
+    // by a numbered option (which would be the permission menu instead).
+    const IDLE_PROMPT_RE = /❯\s*$/;
+
+    function classifyPrompt(buffer: string): "permission" | "idle" | null {
       const tail = stripAnsi(buffer.slice(-1000));
-      return WAITING_PATTERNS.some((p) => p.test(tail));
+      if (PERMISSION_RE.test(tail)) return "permission";
+      if (IDLE_PROMPT_RE.test(tail)) return "idle";
+      return null;
     }
 
     // Claude's thinking/working spinner characters.
@@ -161,19 +182,26 @@ export function App() {
         }
       }
 
-      // Reset idle timer — after 500ms of silence, check if waiting for input
+      // Reset idle timer — after 500ms of silence, classify the prompt state
       const existing = idleTimers.current.get(agentId);
       if (existing) clearTimeout(existing);
       idleTimers.current.set(
         agentId,
         setTimeout(() => {
-          activeAgents.current.delete(agentId);
           const buf = outputBuffers.current.get(agentId) ?? "";
-          const waiting = isWaitingForInput(buf);
-          patchAgent(agentId, {
-            state: "idle",
-            needsAttention: waiting,
-          });
+          const prompt = classifyPrompt(buf);
+
+          if (prompt === "permission") {
+            // Claude is showing a permission/tool approval menu
+            activeAgents.current.delete(agentId);
+            patchAgent(agentId, { state: "idle", needsAttention: true });
+          } else if (prompt === "idle") {
+            // Claude is at the ❯ input prompt — truly done
+            activeAgents.current.delete(agentId);
+            patchAgent(agentId, { state: "idle", needsAttention: false });
+          }
+          // else: no prompt detected — Claude is mid-operation, don't change state
+
           idleTimers.current.delete(agentId);
         }, 500)
       );

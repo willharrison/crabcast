@@ -25,7 +25,7 @@ function createWindow(): void {
     y: savedWindowState?.y,
     minWidth: 800,
     minHeight: 600,
-    title: "CrabCast",
+    title: BUILD_CHANNEL === "dev" ? "CrabCast Dev" : "CrabCast",
     ...(process.platform === "darwin" ? {
       titleBarStyle: "hiddenInset" as const,
       trafficLightPosition: { x: 12, y: 12 },

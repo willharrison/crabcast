@@ -9,8 +9,11 @@ function copyNativeModule(buildPath: string, moduleName: string) {
   fs.cpSync(src, dest, { recursive: true });
 }
 
+const isDev = process.env.VITE_BUILD_CHANNEL === "dev";
+
 const config: ForgeConfig = {
   packagerConfig: {
+    name: isDev ? "CrabCast Dev" : "CrabCast",
     icon: "assets/icon",
     asar: {
       unpack: "**/node-pty/**",

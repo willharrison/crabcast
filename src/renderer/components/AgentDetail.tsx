@@ -67,6 +67,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     height: "100%",
     position: "relative",
+    overflow: "hidden",
   },
   header: {
     display: "flex",
