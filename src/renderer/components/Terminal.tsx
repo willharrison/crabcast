@@ -184,13 +184,17 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
 
     }
 
+    // Double rAF ensures the browser has fully laid out the container
+    // after transitioning from display:none to visible
     requestAnimationFrame(() => {
-      entry.fit.fit();
-      const dims = entry.fit.proposeDimensions();
-      if (dims) {
-        window.electronAPI.ptyResize(agentId, dims.cols, dims.rows);
-      }
-      entry.term.focus();
+      requestAnimationFrame(() => {
+        entry.fit.fit();
+        const dims = entry.fit.proposeDimensions();
+        if (dims) {
+          window.electronAPI.ptyResize(agentId, dims.cols, dims.rows);
+        }
+        entry.term.focus();
+      });
     });
   }, [visible, agentId]);
 
