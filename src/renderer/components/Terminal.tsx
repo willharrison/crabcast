@@ -72,14 +72,16 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
 
       const fit = new FitAddon();
       term.loadAddon(fit);
-      term.loadAddon(new WebLinksAddon());
+      term.loadAddon(new WebLinksAddon((_event, uri) => {
+        window.electronAPI.openExternal(uri);
+      }));
 
-      // Intercept Shift+Enter to send a newline for multi-line input.
+      // Intercept Shift+Enter to send CSI u encoded sequence.
       // xterm.js sends \r for both Enter and Shift+Enter by default.
-      // Claude CLI treats \n as a line continuation within the input.
+      // Claude CLI expects \x1b[13;2u (CSI u Shift+Enter) for newline in input.
       term.attachCustomKeyEventHandler((e) => {
         if (e.type === "keydown" && e.key === "Enter" && e.shiftKey) {
-          window.electronAPI.ptyWrite(agentId, "\n");
+          window.electronAPI.ptyWrite(agentId, "\x1b[13;2u");
           return false;
         }
         return true;
@@ -184,17 +186,13 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
 
     }
 
-    // Double rAF ensures the browser has fully laid out the container
-    // after transitioning from display:none to visible
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        entry.fit.fit();
-        const dims = entry.fit.proposeDimensions();
-        if (dims) {
-          window.electronAPI.ptyResize(agentId, dims.cols, dims.rows);
-        }
-        entry.term.focus();
-      });
+      entry.fit.fit();
+      const dims = entry.fit.proposeDimensions();
+      if (dims) {
+        window.electronAPI.ptyResize(agentId, dims.cols, dims.rows);
+      }
+      entry.term.focus();
     });
   }, [visible, agentId]);
 
