@@ -160,11 +160,14 @@ export function App() {
       return null;
     }
 
-    // Claude's thinking/working spinner characters.
-    // Strip OSC sequences (like window title: ]0;✳ Claude Code) first,
-    // since those contain ✳ even when Claude is idle.
-    const OSC_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
-    const THINKING_RE = /[✻✽✶✳✢✸⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/;
+    // Detect Claude activity from the window title OSC sequence.
+    // Claude sets its title to things like:
+    //   ]0;⠂ Claude Code   — thinking (braille spinner)
+    //   ]0;✳ Claude Code   — idle
+    // The braille dots (⠂⠈⠐⠠ etc.) and progress bar indicate active work.
+    // ✳ indicates idle. We check the title for non-idle indicators.
+    const TITLE_RE = /\x1b\]0;([^\x07]*)\x07/;
+    const IDLE_TITLE_CHARS = /^[✳\s]/;
 
     const removePtyData = window.electronAPI.onPtyData(({ agentId, data }) => {
       // Append to rolling buffer (keep last 2KB)
@@ -172,15 +175,15 @@ export function App() {
       const updated = (prev + data).slice(-2048);
       outputBuffers.current.set(agentId, updated);
 
-      // Mark as running if:
-      // 1. Output contains Claude's thinking spinner characters, OR
-      // 2. A substantial chunk of data arrived (Claude generating output, not just keystroke echo)
-      const stripped = data.replace(OSC_RE, "");
-      const isThinking = THINKING_RE.test(stripped);
-      const isSubstantialOutput = stripped.length > 20;
-      if ((isThinking || isSubstantialOutput) && !activeAgents.current.has(agentId)) {
-        activeAgents.current.add(agentId);
-        patchAgent(agentId, { state: "running", needsAttention: false });
+      // Check window title for activity indicators
+      const titleMatch = data.match(TITLE_RE);
+      if (titleMatch) {
+        const title = titleMatch[1];
+        const isIdle = IDLE_TITLE_CHARS.test(title);
+        if (!isIdle && !activeAgents.current.has(agentId)) {
+          activeAgents.current.add(agentId);
+          patchAgent(agentId, { state: "running", needsAttention: false });
+        }
       }
 
       // Reset idle timer — after 500ms of silence, classify the prompt state
