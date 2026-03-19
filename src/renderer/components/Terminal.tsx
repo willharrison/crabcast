@@ -133,13 +133,16 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
     container.addEventListener("dragover", handleDragOver);
     container.addEventListener("drop", handleDrop);
 
-    // Handle container resize — only fit when visible to avoid 0-dimension resizes
-    const resizeObserver = new ResizeObserver(() => {
-      if (visibleRef.current) {
-        fit.fit();
-      }
-    });
-    resizeObserver.observe(container);
+    // Fit on window resize only — not on content changes.
+    // Using window resize event instead of ResizeObserver to avoid
+    // scroll-to-top issues caused by fit() firing during output flow.
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const handleWindowResize = () => {
+      if (!visibleRef.current) return;
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => fit.fit(), 100);
+    };
+    window.addEventListener("resize", handleWindowResize);
 
     return () => {
       dataDisposable.dispose();
@@ -147,7 +150,8 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       removePtyData();
       removePtyExit();
       removePtySessionId();
-      resizeObserver.disconnect();
+      window.removeEventListener("resize", handleWindowResize);
+      if (resizeTimer) clearTimeout(resizeTimer);
       container.removeEventListener("dragover", handleDragOver);
       container.removeEventListener("drop", handleDrop);
     };
