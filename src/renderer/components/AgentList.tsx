@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { AgentInfo } from "../../shared/types.js";
 
-const SPINNER_FRAMES = ["·", "✻", "✽", "✶", "✳", "✢"];
+const SPINNER_FRAMES = ["⊹", "✶", "✷", "✸", "✹", "✺"];
 
 function Spinner() {
   const [frame, setFrame] = useState(0);
@@ -19,6 +19,7 @@ function Spinner() {
 interface Props {
   agents: AgentInfo[];
   selectedId: string | null;
+  unreadAgents: Set<string>;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
@@ -72,6 +73,7 @@ function useGitCounts(agents: AgentInfo[]) {
 export function AgentList({
   agents,
   selectedId,
+  unreadAgents,
   onSelect,
   onClose,
   onReorder,
@@ -122,6 +124,7 @@ export function AgentList({
           const isDragTarget = dropIndex === index && dragIndex !== null;
           const gc = gitCounts[agent.id];
           const hasChanges = gc && (gc.modified + gc.added + gc.deleted + gc.untracked) > 0;
+          const isUnread = unreadAgents.has(agent.id);
 
           return (
             <button
@@ -151,6 +154,8 @@ export function AgentList({
                     <span style={styles.attentionIcon}>!</span>
                   ) : agent.state === "running" ? (
                     <Spinner />
+                  ) : isUnread ? (
+                    <span style={{ ...styles.dot, background: "var(--accent)" }} />
                   ) : (
                     <span style={{
                       ...styles.dot,

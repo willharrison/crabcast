@@ -22,6 +22,7 @@ export function App() {
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [pendingAgentType, setPendingAgentType] = useState<AgentType>("claude");
+  const [unreadAgents, setUnreadAgents] = useState<Set<string>>(new Set());
   const [sidebarPanel, setSidebarPanel] = useState<SidebarPanel>(null);
   const [panelHeight, setPanelHeight] = useState(() => {
     const saved = localStorage.getItem("panelHeight");
@@ -31,6 +32,18 @@ export function App() {
   const draggingRef = useRef(false);
 
   const selectedAgent = agents.find((a) => a.id === selectedId) ?? null;
+
+  const selectAgent = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (id) {
+      setUnreadAgents(prev => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }, []);
 
   // Persist panel height
   useEffect(() => {
@@ -89,7 +102,7 @@ export function App() {
     const dir = await window.electronAPI.openDirectoryDialog();
     if (!dir) return;
     const info = await createAgent({ cwd: dir, agentType });
-    setSelectedId(info.id);
+    selectAgent(info.id);
   };
 
   const handleResumeSession = async (session: ClaudeSession) => {
@@ -97,13 +110,13 @@ export function App() {
     const info = await createAgent({ cwd: session.cwd, agentType: pendingAgentType });
     await window.electronAPI.updateAgentSession(info.id, session.sessionId);
     patchAgent(info.id, { sessionId: session.sessionId });
-    setSelectedId(info.id);
+    selectAgent(info.id);
   };
 
   const handleSSHConnect = async (conn: SSHConnection, remotePath: string) => {
     setShowSSHModal(false);
     const info = await createAgent({ cwd: remotePath, ssh: conn, agentType: pendingAgentType });
-    setSelectedId(info.id);
+    selectAgent(info.id);
   };
 
   // Drag to resize the bottom panel
@@ -170,6 +183,17 @@ export function App() {
     const chunkCounts = new Map<string, number>();
     const chunkTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+    const markRunning = (agentId: string) => {
+      activeAgents.current.add(agentId);
+      patchAgent(agentId, { state: "running", needsAttention: false });
+      setUnreadAgents(prev => {
+        if (!prev.has(agentId)) return prev;
+        const next = new Set(prev);
+        next.delete(agentId);
+        return next;
+      });
+    };
+
     const removePtyData = window.electronAPI.onPtyData(({ agentId, data }) => {
       // Append to rolling buffer (keep last 2KB)
       const prev = outputBuffers.current.get(agentId) ?? "";
@@ -182,16 +206,14 @@ export function App() {
         const title = titleMatch[1];
         const isIdle = IDLE_TITLE_CHARS.test(title);
         if (!isIdle && !activeAgents.current.has(agentId)) {
-          activeAgents.current.add(agentId);
-          patchAgent(agentId, { state: "running", needsAttention: false });
+          markRunning(agentId);
         }
       }
 
       // Signal 2: Entering alternate buffer (Claude)
       if (ALT_BUFFER_ENTER.test(data)) {
         if (!activeAgents.current.has(agentId)) {
-          activeAgents.current.add(agentId);
-          patchAgent(agentId, { state: "running", needsAttention: false });
+          markRunning(agentId);
         }
       }
 
@@ -208,8 +230,7 @@ export function App() {
       }, 300));
 
       if (count >= 8 && !activeAgents.current.has(agentId)) {
-        activeAgents.current.add(agentId);
-        patchAgent(agentId, { state: "running", needsAttention: false });
+        markRunning(agentId);
       }
 
       // Reset idle timer — after 500ms of silence, classify the prompt state
@@ -221,11 +242,20 @@ export function App() {
           const buf = outputBuffers.current.get(agentId) ?? "";
           const prompt = classifyPrompt(buf);
 
+          const wasRunning = activeAgents.current.has(agentId);
           activeAgents.current.delete(agentId);
           if (prompt === "permission") {
             patchAgent(agentId, { state: "idle", needsAttention: true });
           } else {
             patchAgent(agentId, { state: "idle", needsAttention: false });
+            // Mark as unread if it was running and user isn't viewing it
+            if (wasRunning) {
+              setUnreadAgents(prev => {
+                const next = new Set(prev);
+                next.add(agentId);
+                return next;
+              });
+            }
           }
 
           idleTimers.current.delete(agentId);
@@ -312,7 +342,7 @@ export function App() {
         e.preventDefault();
         const index = parseInt(e.key, 10) - 1;
         if (index < agents.length) {
-          setSelectedId(agents[index].id);
+          selectAgent(agents[index].id);
         }
       }
     };
@@ -329,7 +359,8 @@ export function App() {
           <AgentList
             agents={agents}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            unreadAgents={unreadAgents}
+            onSelect={selectAgent}
             onClose={(id) => {
               destroyTerminal(id);
               removeAgent(id);
