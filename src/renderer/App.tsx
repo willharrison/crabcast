@@ -239,7 +239,8 @@ export function App() {
   }, [agents, sidebarPanel]);
 
   return (
-    <div style={styles.layout}>
+    <div style={styles.root}>
+      <div style={styles.layout}>
       <div style={styles.sidebar}>
         {/* Agent list — always visible */}
         <div style={styles.agentListArea}>
@@ -339,12 +340,6 @@ export function App() {
         )}
       </div>
 
-      {BUILD_CHANNEL !== "release" && (
-        <div style={styles.buildBar}>
-          {BUILD_CHANNEL} build
-        </div>
-      )}
-
       {showSSHModal && (
         <SSHConnectModal
           onConnect={handleSSHConnect}
@@ -372,14 +367,26 @@ export function App() {
           onResetAgentName={handleResetAgentName}
         />
       )}
+      </div>
+      {BUILD_CHANNEL !== "release" && (
+        <div style={styles.buildBar}>
+          {BUILD_CHANNEL} build
+        </div>
+      )}
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  root: {
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+  },
   layout: {
     display: "flex",
-    height: "100%",
+    flex: 1,
+    minHeight: 0,
   },
   sidebar: {
     width: 280,
@@ -481,19 +488,14 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.6,
   },
   buildBar: {
-    position: "fixed",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    flexShrink: 0,
     padding: "2px 0",
     background: BUILD_CHANNEL === "local" ? "var(--yellow)" : "var(--accent)",
-    color: BUILD_CHANNEL === "local" ? "#0a0c10" : "#0a0c10",
+    color: "#0a0c10",
     fontSize: 10,
     fontWeight: 600,
     textAlign: "center",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    zIndex: 300,
-    pointerEvents: "none",
   } as React.CSSProperties,
 };
