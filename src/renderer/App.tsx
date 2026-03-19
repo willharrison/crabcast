@@ -172,14 +172,15 @@ export function App() {
       const updated = (prev + data).slice(-2048);
       outputBuffers.current.set(agentId, updated);
 
-      // Only mark as running if the output contains Claude's thinking characters
-      // (after stripping window title sequences which always contain ✳)
+      // Mark as running if:
+      // 1. Output contains Claude's thinking spinner characters, OR
+      // 2. A substantial chunk of data arrived (Claude generating output, not just keystroke echo)
       const stripped = data.replace(OSC_RE, "");
-      if (THINKING_RE.test(stripped)) {
-        if (!activeAgents.current.has(agentId)) {
-          activeAgents.current.add(agentId);
-          patchAgent(agentId, { state: "running", needsAttention: false });
-        }
+      const isThinking = THINKING_RE.test(stripped);
+      const isSubstantialOutput = stripped.length > 20;
+      if ((isThinking || isSubstantialOutput) && !activeAgents.current.has(agentId)) {
+        activeAgents.current.add(agentId);
+        patchAgent(agentId, { state: "running", needsAttention: false });
       }
 
       // Reset idle timer — after 500ms of silence, classify the prompt state
