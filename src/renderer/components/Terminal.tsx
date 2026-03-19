@@ -182,27 +182,6 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
         (textarea as any).scrollIntoView = () => {};
       }
 
-      // Attach drag-and-drop to the xterm-screen element which covers the terminal
-      const screen = container.querySelector(".xterm-screen") as HTMLElement | null;
-      const dropTarget = screen || container;
-      const handleDragOver = (e: Event) => {
-        e.preventDefault();
-        (e as DragEvent).dataTransfer!.dropEffect = "copy";
-      };
-      const handleDrop = (e: Event) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const files = (e as DragEvent).dataTransfer?.files;
-        if (!files || files.length === 0) return;
-        for (const file of Array.from(files)) {
-          const filePath = (file as any).path as string | undefined;
-          if (filePath) {
-            window.electronAPI.ptyWrite(agentId, filePath);
-          }
-        }
-      };
-      dropTarget.addEventListener("dragover", handleDragOver);
-      dropTarget.addEventListener("drop", handleDrop);
     }
 
     requestAnimationFrame(() => {

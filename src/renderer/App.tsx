@@ -219,6 +219,34 @@ export function App() {
     };
   }, [patchAgent]);
 
+  // File drag-and-drop — handle at document level to prevent Electron's
+  // default file navigation and ensure it works regardless of xterm's DOM layers
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!selectedId) return;
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      for (const file of Array.from(files)) {
+        const filePath = (file as any).path as string | undefined;
+        if (filePath) {
+          window.electronAPI.ptyWrite(selectedId, filePath);
+        }
+      }
+    };
+    document.addEventListener("dragover", handleDragOver);
+    document.addEventListener("drop", handleDrop);
+    return () => {
+      document.removeEventListener("dragover", handleDragOver);
+      document.removeEventListener("drop", handleDrop);
+    };
+  }, [selectedId]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
