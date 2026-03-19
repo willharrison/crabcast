@@ -171,17 +171,21 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       entry.opened = true;
       entry.term.open(container);
 
-      // Prevent the browser from scrolling any parent element when
-      // the terminal or its children receive focus
-      container.addEventListener("focus", (e) => {
-        e.preventDefault();
-      }, { capture: true });
-
-      // Prevent scrollIntoView behavior on the xterm screen element
-      const screen = container.querySelector(".xterm-screen");
-      if (screen) {
-        (screen as HTMLElement).style.overflow = "hidden";
+      // xterm's hidden textarea calls scrollIntoView when it receives focus
+      // or input, which can scroll parent containers. Override it.
+      const textarea = container.querySelector(".xterm-helper-textarea");
+      if (textarea) {
+        (textarea as HTMLElement).scrollIntoView = () => {};
       }
+
+      // Also prevent any focusable element inside xterm from triggering scroll
+      const observer = new MutationObserver(() => {
+        const ta = container.querySelector(".xterm-helper-textarea");
+        if (ta) {
+          (ta as any).scrollIntoView = () => {};
+        }
+      });
+      observer.observe(container, { childList: true, subtree: true });
     }
 
     requestAnimationFrame(() => {
