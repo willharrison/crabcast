@@ -164,7 +164,7 @@ export function App() {
     // Strip OSC sequences (like window title: ]0;✳ Claude Code) first,
     // since those contain ✳ even when Claude is idle.
     const OSC_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
-    const THINKING_RE = /[✻✽✶✳✢✸◐⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/;
+    const THINKING_RE = /[✻✽✶✳✢✸⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/;
 
     const removePtyData = window.electronAPI.onPtyData(({ agentId, data }) => {
       // Append to rolling buffer (keep last 2KB)
@@ -191,16 +191,12 @@ export function App() {
           const buf = outputBuffers.current.get(agentId) ?? "";
           const prompt = classifyPrompt(buf);
 
+          activeAgents.current.delete(agentId);
           if (prompt === "permission") {
-            // Claude is showing a permission/tool approval menu
-            activeAgents.current.delete(agentId);
             patchAgent(agentId, { state: "idle", needsAttention: true });
-          } else if (prompt === "idle") {
-            // Claude is at the ❯ input prompt — truly done
-            activeAgents.current.delete(agentId);
+          } else {
             patchAgent(agentId, { state: "idle", needsAttention: false });
           }
-          // else: no prompt detected — Claude is mid-operation, don't change state
 
           idleTimers.current.delete(agentId);
         }, 500)
