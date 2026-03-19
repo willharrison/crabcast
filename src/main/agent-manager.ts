@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import fs from "node:fs";
 import type { BrowserWindow } from "electron";
 import type {
   AgentId,
@@ -7,12 +8,13 @@ import type {
   CreateAgentOpts,
 } from "../shared/types.js";
 import { IPC } from "../shared/types.js";
-import { getRepoBranch, isGitRepo } from "./git-service.js";
+import { getRepoBranch, isGitRepo, getGitFileStatuses } from "./git-service.js";
 import { getRemoteGitInfo } from "./ssh-service.js";
 import { loadState, saveState } from "./store.js";
 
 interface StoredAgent {
   info: AgentInfo;
+  watchers?: fs.FSWatcher[];
 }
 
 export class AgentManager {
@@ -27,7 +29,12 @@ export class AgentManager {
   private loadPersistedAgents(): void {
     const saved = loadState();
     for (const info of saved) {
-      this.agents.set(info.id, { info });
+      const stored: StoredAgent = { info };
+      this.agents.set(info.id, stored);
+      // Start git watchers for local repos
+      if (!info.ssh) {
+        this.watchGit(info.id, info.cwd, stored);
+      }
     }
   }
 
@@ -59,10 +66,64 @@ export class AgentManager {
       info.gitBranch = await getRepoBranch(opts.cwd);
     }
 
-    this.agents.set(id, { info });
+    const stored: StoredAgent = { info };
+    this.agents.set(id, stored);
     this.persist();
 
+    // Start watching git state for local (non-SSH) repos
+    if (!opts.ssh) {
+      this.watchGit(id, opts.cwd, stored);
+    }
+
     return info;
+  }
+
+  private watchGit(id: AgentId, cwd: string, stored: StoredAgent): void {
+    const gitDir = path.join(cwd, ".git");
+    const watchers: fs.FSWatcher[] = [];
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        try {
+          const [branch, statuses] = await Promise.all([
+            getRepoBranch(cwd),
+            getGitFileStatuses(cwd),
+          ]);
+          const dirty = Object.keys(statuses).length > 0;
+          const changed =
+            stored.info.gitBranch !== branch || stored.info.gitDirty !== dirty;
+          if (changed) {
+            stored.info.gitBranch = branch;
+            stored.info.gitDirty = dirty;
+            this.persist();
+            this.send(IPC.AGENT_STATE_CHANGED, stored.info);
+          }
+        } catch { /* git dir may not exist yet */ }
+      }, 300);
+    };
+
+    try {
+      // Watch HEAD for branch changes
+      const headWatcher = fs.watch(path.join(gitDir, "HEAD"), refresh);
+      watchers.push(headWatcher);
+    } catch { /* not a git repo */ }
+
+    try {
+      // Watch index for staging changes
+      const indexWatcher = fs.watch(path.join(gitDir, "index"), refresh);
+      watchers.push(indexWatcher);
+    } catch { /* no index yet */ }
+
+    try {
+      // Watch refs/heads for new commits
+      const refsDir = path.join(gitDir, "refs", "heads");
+      const refsWatcher = fs.watch(refsDir, { recursive: true }, refresh);
+      watchers.push(refsWatcher);
+    } catch { /* no refs yet */ }
+
+    stored.watchers = watchers;
   }
 
   stopAgent(id: AgentId): void {
@@ -75,6 +136,10 @@ export class AgentManager {
   }
 
   removeAgent(id: AgentId): void {
+    const agent = this.agents.get(id);
+    if (agent?.watchers) {
+      for (const w of agent.watchers) w.close();
+    }
     this.agents.delete(id);
     this.persist();
   }
