@@ -91,21 +91,6 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
 
     const { term, fit } = entry;
 
-    // Track whether the user has scrolled up manually.
-    // When Claude switches buffers (alternate ↔ normal), only snap to bottom
-    // if the user was already at the bottom.
-    let userScrolledUp = false;
-    const scrollDisposable = term.onScroll(() => {
-      const vp = term.buffer.active;
-      userScrolledUp = vp.baseY + term.rows < vp.length;
-    });
-
-    const bufferDisposable = term.buffer.onBufferChange(() => {
-      if (!userScrolledUp) {
-        term.scrollToBottom();
-      }
-    });
-
     // Wire up data and resize to PTY
     const dataDisposable = term.onData((data) => {
       window.electronAPI.ptyWrite(agentId, data);
@@ -115,17 +100,11 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       window.electronAPI.ptyResize(agentId, cols, rows);
     });
 
-    // Listen for PTY output.
-    // If the user is at the bottom, keep them there after the write.
-    // When the scrollback buffer is full, line eviction can shift the viewport;
-    // this corrects it without interfering if the user scrolled up manually.
+    // Listen for PTY output — just write, no scroll manipulation.
+    // xterm 5.4.0-beta.37 fixes the alt buffer scroll teleport natively.
     const removePtyData = window.electronAPI.onPtyData(({ agentId: id, data }) => {
       if (id === agentId) {
-        const viewport = term.buffer.active;
-        const atBottom = viewport.baseY + term.rows >= viewport.length;
-        term.write(data, () => {
-          if (atBottom) term.scrollToBottom();
-        });
+        term.write(data);
       }
     });
 
@@ -160,8 +139,6 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
     window.addEventListener("resize", handleWindowResize);
 
     return () => {
-      scrollDisposable.dispose();
-      bufferDisposable.dispose();
       dataDisposable.dispose();
       resizeDisposable.dispose();
       removePtyData();
