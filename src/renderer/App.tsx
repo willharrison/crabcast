@@ -218,7 +218,7 @@ export function App() {
       }
 
       // Signal 3: Rapid data bursts (Codex and general).
-      // Count chunks in a 300ms window. Typing produces ~1 chunk per keystroke
+      // Count chunks in a 500ms window. Typing produces ~1 chunk per keystroke
       // at human speed. Active output produces many chunks rapidly.
       const count = (chunkCounts.get(agentId) ?? 0) + 1;
       chunkCounts.set(agentId, count);
@@ -227,13 +227,20 @@ export function App() {
       chunkTimers.set(agentId, setTimeout(() => {
         chunkCounts.set(agentId, 0);
         chunkTimers.delete(agentId);
-      }, 300));
+      }, 500));
 
-      if (count >= 8 && !activeAgents.current.has(agentId)) {
+      if (count >= 5 && !activeAgents.current.has(agentId)) {
         markRunning(agentId);
       }
 
-      // Reset idle timer — after 500ms of silence, classify the prompt state
+      // Signal 4: Large data chunks indicate active output (tool results, code gen)
+      if (data.length > 200 && !activeAgents.current.has(agentId)) {
+        markRunning(agentId);
+      }
+
+      // Reset idle timer — after 2s of silence, classify the prompt state.
+      // Using 2s instead of 500ms because Claude can have brief pauses
+      // between tool calls that don't mean it's done.
       const existing = idleTimers.current.get(agentId);
       if (existing) clearTimeout(existing);
       idleTimers.current.set(
@@ -259,7 +266,7 @@ export function App() {
           }
 
           idleTimers.current.delete(agentId);
-        }, 500)
+        }, 2000)
       );
     });
 
