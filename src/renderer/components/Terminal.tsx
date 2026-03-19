@@ -102,8 +102,7 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       window.electronAPI.ptyResize(agentId, cols, rows);
     });
 
-    // Listen for PTY output — just write, no scroll manipulation.
-    // xterm 5.4.0-beta.37 fixes the alt buffer scroll teleport natively.
+
     const removePtyData = window.electronAPI.onPtyData(({ agentId: id, data }) => {
       if (id === agentId) {
         term.write(data);
@@ -177,13 +176,22 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       entry.opened = true;
       entry.term.open(container);
 
-      // Override scrollIntoView on xterm's hidden textarea.
-      // The browser calls this on focus/input which scrolls parent containers.
-      const textarea = container.querySelector(".xterm-helper-textarea");
-      if (textarea) {
-        (textarea as any).scrollIntoView = () => {};
-      }
-
+      // Fix xterm.js 5.3.0 scroll race (github.com/xtermjs/xterm.js/issues/5339).
+      // Viewport._innerRefresh changes scroll area height, browser clamps scrollTop,
+      // but _ignoreNextScrollEvent isn't set. Monkey-patch _innerRefresh to fix this.
+      try {
+        const vp = (entry!.term as any)._core.viewport;
+        if (vp && vp._innerRefresh) {
+          const orig = vp._innerRefresh.bind(vp);
+          vp._innerRefresh = function() {
+            const hBefore = vp._lastRecordedBufferHeight;
+            orig();
+            if (vp._lastRecordedBufferHeight !== hBefore) {
+              vp._ignoreNextScrollEvent = true;
+            }
+          };
+        }
+      } catch { /* fail silently if xterm internals changed */ }
     }
 
     requestAnimationFrame(() => {
