@@ -74,11 +74,12 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       term.loadAddon(fit);
       term.loadAddon(new WebLinksAddon());
 
-      // Intercept Shift+Enter to send CSI u sequence for multi-line input.
+      // Intercept Shift+Enter to send a newline for multi-line input.
       // xterm.js sends \r for both Enter and Shift+Enter by default.
+      // Claude CLI treats \n as a line continuation within the input.
       term.attachCustomKeyEventHandler((e) => {
         if (e.type === "keydown" && e.key === "Enter" && e.shiftKey) {
-          window.electronAPI.ptyWrite(agentId, "\x1b[13;2u");
+          window.electronAPI.ptyWrite(agentId, "\n");
           return false;
         }
         return true;
@@ -90,10 +91,19 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
 
     const { term, fit } = entry;
 
-    // When Claude CLI exits alternate buffer (Esc, submitting input), xterm
-    // restores the normal buffer at whatever scroll position it had. Snap to bottom.
+    // Track whether the user has scrolled up manually.
+    // When Claude switches buffers (alternate ↔ normal), only snap to bottom
+    // if the user was already at the bottom.
+    let userScrolledUp = false;
+    const scrollDisposable = term.onScroll(() => {
+      const vp = term.buffer.active;
+      userScrolledUp = vp.baseY + term.rows < vp.length;
+    });
+
     const bufferDisposable = term.buffer.onBufferChange(() => {
-      term.scrollToBottom();
+      if (!userScrolledUp) {
+        term.scrollToBottom();
+      }
     });
 
     // Wire up data and resize to PTY
@@ -150,6 +160,7 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
     window.addEventListener("resize", handleWindowResize);
 
     return () => {
+      scrollDisposable.dispose();
       bufferDisposable.dispose();
       dataDisposable.dispose();
       resizeDisposable.dispose();
