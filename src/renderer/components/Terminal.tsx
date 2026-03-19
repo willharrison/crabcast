@@ -138,7 +138,9 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       window.electronAPI.ptySpawn(agentId, cwd, ssh, sessionId);
     }
 
-    // Handle image / file drag-and-drop
+    // Handle image / file drag-and-drop on the outer wrapper so it isn't
+    // blocked by xterm's internal DOM layers
+    const outer = container.parentElement;
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -155,8 +157,10 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
         }
       }
     };
-    container.addEventListener("dragover", handleDragOver);
-    container.addEventListener("drop", handleDrop);
+    if (outer) {
+      outer.addEventListener("dragover", handleDragOver);
+      outer.addEventListener("drop", handleDrop);
+    }
 
     // Fit on window resize only — not on content changes.
     // Using window resize event instead of ResizeObserver to avoid
@@ -178,8 +182,10 @@ export function Terminal({ agentId, cwd, ssh, sessionId, fontSize = 13, visible 
       removePtySessionId();
       window.removeEventListener("resize", handleWindowResize);
       if (resizeTimer) clearTimeout(resizeTimer);
-      container.removeEventListener("dragover", handleDragOver);
-      container.removeEventListener("drop", handleDrop);
+      if (outer) {
+        outer.removeEventListener("dragover", handleDragOver);
+        outer.removeEventListener("drop", handleDrop);
+      }
     };
     // Only run on mount — terminal stays alive for the lifetime of the agent
     // eslint-disable-next-line react-hooks/exhaustive-deps
