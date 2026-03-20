@@ -2,15 +2,16 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 interface Props {
   cwd: string;
+  fileName?: string;
   onClose: () => void;
 }
 
-export function ClaudeMdEditor({ cwd, onClose }: Props) {
+export function ClaudeMdEditor({ cwd, fileName = "CLAUDE.md", onClose }: Props) {
   const [content, setContent] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const filePath = `${cwd}/CLAUDE.md`;
+  const filePath = `${cwd}/${fileName}`;
 
   useEffect(() => {
     window.electronAPI.readFile(filePath).then((text) => {
@@ -66,7 +67,7 @@ export function ClaudeMdEditor({ cwd, onClose }: Props) {
       <div style={styles.modal}>
         <div style={styles.header}>
           <div style={styles.headerLeft}>
-            <h3 style={styles.title}>CLAUDE.md</h3>
+            <h3 style={styles.title}>{fileName}</h3>
             <span style={styles.path}>{filePath}</span>
           </div>
           <div style={styles.headerRight}>

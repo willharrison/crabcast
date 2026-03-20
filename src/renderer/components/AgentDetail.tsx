@@ -129,7 +129,7 @@ export function AgentDetail({ agents, selectedAgent, terminalFontSize }: Props) 
               className="btn-ghost"
               style={styles.claudeMdBtn}
             >
-              CLAUDE.md
+              {selectedAgent.agentType === "codex" ? "AGENTS.md" : "CLAUDE.md"}
             </button>
           </div>
         </div>
@@ -195,10 +195,11 @@ export function AgentDetail({ agents, selectedAgent, terminalFontSize }: Props) 
         })}
       </div>
 
-      {/* CLAUDE.md editor modal */}
+      {/* Instruction file editor */}
       {showClaudeMd && selectedAgent && (
         <ClaudeMdEditor
           cwd={selectedAgent.cwd}
+          fileName={selectedAgent.agentType === "codex" ? "AGENTS.md" : "CLAUDE.md"}
           onClose={() => setShowClaudeMd(false)}
         />
       )}
