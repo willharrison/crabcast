@@ -215,6 +215,8 @@ export function registerIpcHandlers(
     agentManager.resetAgentName(agentId)
   );
 
+  ipcMain.handle(IPC.HOME_PATH, () => os.homedir());
+
   // Dock badge (macOS)
   ipcMain.on(IPC.DOCK_BADGE, (_event, text: string) => {
     if (process.platform === "darwin" && app.dock) {

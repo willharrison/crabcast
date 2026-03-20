@@ -105,6 +105,7 @@ export const IPC = {
   AGENT_RENAME: "agent:rename",
   AGENT_RESET_NAME: "agent:reset-name",
   DOCK_BADGE: "dock:badge",
+  HOME_PATH: "app:home-path",
 } as const;
 
 // The API exposed to the renderer via contextBridge
@@ -145,6 +146,7 @@ export interface ElectronAPI {
   renameAgent: (id: AgentId, name: string) => Promise<AgentInfo>;
   resetAgentName: (id: AgentId) => Promise<AgentInfo>;
   setDockBadge: (text: string) => void;
+  getHomePath: () => Promise<string>;
 
   onAgentStateChanged: (cb: (info: AgentInfo) => void) => () => void;
 }

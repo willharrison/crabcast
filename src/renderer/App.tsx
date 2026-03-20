@@ -105,6 +105,12 @@ export function App() {
     selectAgent(info.id);
   };
 
+  const handleOpenHome = async (agentType: AgentType = "claude") => {
+    const home = await window.electronAPI.getHomePath();
+    const info = await createAgent({ cwd: home, agentType });
+    selectAgent(info.id);
+  };
+
   const handleResumeSession = async (session: ClaudeSession) => {
     setShowResumeModal(false);
     const info = await createAgent({ cwd: session.cwd, agentType: pendingAgentType });
@@ -479,6 +485,7 @@ export function App() {
           settings={settings}
           onUpdateSettings={updateSettings}
           onOpenDirectory={handleOpenDirectory}
+          onOpenHome={handleOpenHome}
           onResume={(agentType) => { setPendingAgentType(agentType); setShowResumeModal(true); }}
           onSSH={(agentType) => { setPendingAgentType(agentType); setShowSSHModal(true); }}
           onClose={() => setShowCommandPalette(false)}

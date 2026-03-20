@@ -45,6 +45,7 @@ const api: ElectronAPI = {
   renameAgent: (id, name) => ipcRenderer.invoke(IPC.AGENT_RENAME, id, name),
   resetAgentName: (id) => ipcRenderer.invoke(IPC.AGENT_RESET_NAME, id),
   setDockBadge: (text) => ipcRenderer.send(IPC.DOCK_BADGE, text),
+  getHomePath: () => ipcRenderer.invoke(IPC.HOME_PATH),
 
   sshTest: (conn) => ipcRenderer.invoke(IPC.SSH_TEST, conn),
   sshListDir: (conn, remotePath) => ipcRenderer.invoke(IPC.SSH_LIST_DIR, conn, remotePath),

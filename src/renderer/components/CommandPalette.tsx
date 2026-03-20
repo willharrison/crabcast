@@ -18,6 +18,7 @@ interface Props {
   settings: AppSettings;
   onUpdateSettings: (patch: Partial<AppSettings>) => void;
   onOpenDirectory: (agentType: AgentType) => void;
+  onOpenHome: (agentType: AgentType) => void;
   onResume: (agentType: AgentType) => void;
   onSSH: (agentType: AgentType) => void;
   onClose: () => void;
@@ -33,7 +34,7 @@ const AGENT_TYPE_OPTIONS: SelectOption[] = [
   { id: "codex", label: "Codex", description: "OpenAI Codex CLI" },
 ];
 
-export function CommandPalette({ settings, onUpdateSettings, onOpenDirectory, onResume, onSSH, onClose, selectedAgent, onRenameAgent, onResetAgentName }: Props) {
+export function CommandPalette({ settings, onUpdateSettings, onOpenDirectory, onOpenHome, onResume, onSSH, onClose, selectedAgent, onRenameAgent, onResetAgentName }: Props) {
   const [filter, setFilter] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mode, setMode] = useState<Mode>("commands");
@@ -63,6 +64,16 @@ export function CommandPalette({ settings, onUpdateSettings, onOpenDirectory, on
         enterSelect("Open Directory", AGENT_TYPE_OPTIONS, (id) => {
           onClose();
           onOpenDirectory(id as AgentType);
+        });
+      },
+    },
+    {
+      id: "open-home",
+      label: "Agent: Open Home",
+      action: () => {
+        enterSelect("Open Home", AGENT_TYPE_OPTIONS, (id) => {
+          onClose();
+          onOpenHome(id as AgentType);
         });
       },
     },
