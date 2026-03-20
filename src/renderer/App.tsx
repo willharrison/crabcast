@@ -159,7 +159,7 @@ export function App() {
 
     // Grace period after startup — ignore initial TUI draws
     const startupTime = Date.now();
-    const STARTUP_GRACE_MS = 3000;
+    const STARTUP_GRACE_MS = 5000;
 
     const markRunning = (agentId: string) => {
       activeAgents.current.add(agentId);
@@ -215,7 +215,7 @@ export function App() {
         }, 2000));
       }
 
-      if (bytes > 2000 && !activeAgents.current.has(agentId)) {
+      if (bytes > 1000 && !activeAgents.current.has(agentId)) {
         markRunning(agentId);
       }
 
