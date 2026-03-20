@@ -298,7 +298,7 @@ export function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === "?") {
+      if (e.metaKey && (e.key === "?" || (e.shiftKey && e.key === "/"))) {
         e.preventDefault();
         setShowShortcuts((v) => !v);
         return;
@@ -351,18 +351,25 @@ export function App() {
       </div>
 
       <div style={styles.main}>
-        {agents.length > 0 ? (
+        {agents.length > 0 && (
           <AgentDetail
             agents={agents}
             selectedAgent={selectedAgent}
             terminalFontSize={settings.terminalFontSize}
           />
-        ) : (
+        )}
+        {!selectedAgent && (
           <div style={styles.placeholder}>
             <div style={styles.placeholderContent}>
               <div style={styles.placeholderIcon}>~</div>
               <div style={styles.placeholderText}>Open a directory to get started</div>
-              <div style={styles.placeholderHint}>Cmd+Shift+P for commands &middot; Cmd+1-9 to switch</div>
+              <div style={styles.shortcutList}>
+                <div style={styles.shortcutRow}><span style={styles.shortcutKey}>Cmd+Shift+P</span><span>Command palette</span></div>
+                <div style={styles.shortcutRow}><span style={styles.shortcutKey}>Cmd+1-9</span><span>Switch agent</span></div>
+                <div style={styles.shortcutRow}><span style={styles.shortcutKey}>Cmd+W</span><span>Close agent</span></div>
+                <div style={styles.shortcutRow}><span style={styles.shortcutKey}>Cmd+-</span><span>Split terminal</span></div>
+                <div style={styles.shortcutRow}><span style={styles.shortcutKey}>Cmd+?</span><span>All shortcuts</span></div>
+              </div>
             </div>
           </div>
         )}
@@ -442,12 +449,16 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
+    position: "relative",
   },
   placeholder: {
-    flex: 1,
+    position: "absolute",
+    inset: 0,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    background: "var(--bg-primary)",
+    zIndex: 5,
   },
   placeholderContent: {
     display: "flex",
@@ -465,10 +476,28 @@ const styles: Record<string, React.CSSProperties> = {
     color: "var(--text-muted)",
     fontSize: 14,
   },
-  placeholderHint: {
-    color: "var(--text-muted)",
+  shortcutList: {
+    marginTop: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  shortcutRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
     fontSize: 12,
-    opacity: 0.6,
+    color: "var(--text-muted)",
+  },
+  shortcutKey: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 11,
+    background: "var(--bg-tertiary)",
+    padding: "2px 6px",
+    borderRadius: 3,
+    color: "var(--text-secondary)",
+    minWidth: 100,
+    textAlign: "right" as const,
   },
   buildBar: {
     flexShrink: 0,
