@@ -7,6 +7,7 @@ import { destroyTerminal } from "./components/Terminal.js";
 import { SSHConnectModal } from "./components/SSHConnectModal.js";
 import { ResumeSessionModal } from "./components/ResumeSessionModal.js";
 import { CommandPalette } from "./components/CommandPalette.js";
+import { ShortcutsModal } from "./components/ShortcutsModal.js";
 import type { AgentType, SSHConnection, ClaudeSession } from "../shared/types.js";
 
 const BUILD_CHANNEL = (import.meta.env.VITE_BUILD_CHANNEL as string) || "local";
@@ -17,6 +18,7 @@ export function App() {
   const [showSSHModal, setShowSSHModal] = useState(false);
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [pendingAgentType, setPendingAgentType] = useState<AgentType>("claude");
   const [unreadAgents, setUnreadAgents] = useState<Set<string>>(new Set());
   const { settings, updateSettings } = useSettings();
@@ -296,6 +298,11 @@ export function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey && e.key === "?") {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+        return;
+      }
       if (e.metaKey && e.shiftKey && e.key === "p") {
         e.preventDefault();
         setShowCommandPalette((v) => !v);
@@ -373,6 +380,10 @@ export function App() {
           onResume={handleResumeSession}
           onClose={() => setShowResumeModal(false)}
         />
+      )}
+
+      {showShortcuts && (
+        <ShortcutsModal onClose={() => setShowShortcuts(false)} />
       )}
 
       {showCommandPalette && (
