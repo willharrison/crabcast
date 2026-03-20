@@ -21,6 +21,11 @@ export function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [pendingAgentType, setPendingAgentType] = useState<AgentType>("claude");
   const [unreadAgents, setUnreadAgents] = useState<Set<string>>(new Set());
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem("sidebarWidth");
+    return saved ? parseInt(saved, 10) : 280;
+  });
+  const sidebarDragging = useRef(false);
   const { settings, updateSettings } = useSettings();
 
   const selectedAgent = agents.find((a) => a.id === selectedId) ?? null;
@@ -35,6 +40,27 @@ export function App() {
         return next;
       });
     }
+  }, []);
+
+  // Persist sidebar width
+  useEffect(() => {
+    localStorage.setItem("sidebarWidth", String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  const handleSidebarDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    sidebarDragging.current = true;
+    const onMove = (ev: MouseEvent) => {
+      if (!sidebarDragging.current) return;
+      setSidebarWidth(Math.max(180, Math.min(500, ev.clientX)));
+    };
+    const onUp = () => {
+      sidebarDragging.current = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
   }, []);
 
   // System notifications + dock badge when agents need attention
@@ -183,6 +209,13 @@ export function App() {
 
       // Skip activity detection during startup grace period
       if (Date.now() - startupTime < STARTUP_GRACE_MS) return;
+
+      // If agent was waiting for input (needsAttention) and data arrives,
+      // the user just responded — mark running immediately
+      const currentAgent = agents.find(a => a.id === agentId);
+      if (currentAgent?.needsAttention && data.length > 20 && !activeAgents.current.has(agentId)) {
+        markRunning(agentId);
+      }
 
       // Signal 1: Window title change (Claude-specific)
       const titleMatch = data.match(TITLE_RE);
@@ -339,8 +372,7 @@ export function App() {
   return (
     <div style={styles.root}>
       <div style={styles.layout}>
-      <div style={styles.sidebar}>
-        {/* Agent list — always visible */}
+      <div style={{ ...styles.sidebar, width: sidebarWidth }}>
         <div style={styles.agentListArea}>
           <AgentList
             agents={agents}
@@ -355,6 +387,10 @@ export function App() {
             onReorder={reorderAgents}
           />
         </div>
+        <div
+          style={styles.sidebarHandle}
+          onMouseDown={handleSidebarDragStart}
+        />
       </div>
 
       <div style={styles.main}>
@@ -440,12 +476,20 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
     background: "var(--bg-secondary)",
     display: "flex",
-    flexDirection: "column",
+    flexDirection: "row",
+    position: "relative",
+  },
+  sidebarHandle: {
+    width: 4,
+    cursor: "col-resize",
+    background: "transparent",
     borderRight: "1px solid var(--border)",
+    flexShrink: 0,
   },
   agentListArea: {
     flex: 1,
     minHeight: 0,
+    minWidth: 0,
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
