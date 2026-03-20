@@ -147,13 +147,19 @@ export function App() {
     // Activity detection signals:
     // 1. Window title OSC: Claude sets braille dots when thinking, ✳ when idle
     // 2. Alt buffer switch: Claude uses DECSET 1049h
-    // 3. Rapid data bursts: Codex produces many chunks quickly when working,
-    //    vs single-char echoes when user types at idle prompt
+    // 3. Sustained high data volume: actual agent work produces lots of output
+    //    over several seconds, while TUI redraws and typing are small bursts
     const TITLE_RE = /\x1b\]0;([^\x07]*)\x07/;
     const IDLE_TITLE_CHARS = /^[✳\s]/;
     const ALT_BUFFER_ENTER = /\x1b\[\?1049h/;
-    const chunkCounts = new Map<string, number>();
-    const chunkTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+    // Track bytes per agent over a rolling window for volume-based detection
+    const byteCounters = new Map<string, number>();
+    const byteTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+    // Grace period after startup — ignore initial TUI draws
+    const startupTime = Date.now();
+    const STARTUP_GRACE_MS = 3000;
 
     const markRunning = (agentId: string) => {
       activeAgents.current.add(agentId);
@@ -167,10 +173,16 @@ export function App() {
     };
 
     const removePtyData = window.electronAPI.onPtyData(({ agentId, data }) => {
+      // Skip shell terminals — they don't need activity tracking
+      if (agentId.endsWith("-shell")) return;
+
       // Append to rolling buffer (keep last 2KB)
       const prev = outputBuffers.current.get(agentId) ?? "";
       const updated = (prev + data).slice(-2048);
       outputBuffers.current.set(agentId, updated);
+
+      // Skip activity detection during startup grace period
+      if (Date.now() - startupTime < STARTUP_GRACE_MS) return;
 
       // Signal 1: Window title change (Claude-specific)
       const titleMatch = data.match(TITLE_RE);
@@ -189,30 +201,25 @@ export function App() {
         }
       }
 
-      // Signal 3: Rapid data bursts (Codex and general).
-      // Count chunks in a 500ms window. Typing produces ~1 chunk per keystroke
-      // at human speed. Active output produces many chunks rapidly.
-      const count = (chunkCounts.get(agentId) ?? 0) + 1;
-      chunkCounts.set(agentId, count);
-      const existingChunkTimer = chunkTimers.get(agentId);
-      if (existingChunkTimer) clearTimeout(existingChunkTimer);
-      chunkTimers.set(agentId, setTimeout(() => {
-        chunkCounts.set(agentId, 0);
-        chunkTimers.delete(agentId);
-      }, 500));
+      // Signal 3: Sustained data volume (Codex and general).
+      // Track total bytes over a 2s window. TUI redraws and typing
+      // produce small amounts (<1KB). Active agent work (reading files,
+      // generating code) produces several KB over sustained periods.
+      const bytes = (byteCounters.get(agentId) ?? 0) + data.length;
+      byteCounters.set(agentId, bytes);
+      const existingByteTimer = byteTimers.get(agentId);
+      if (!existingByteTimer) {
+        byteTimers.set(agentId, setTimeout(() => {
+          byteCounters.set(agentId, 0);
+          byteTimers.delete(agentId);
+        }, 2000));
+      }
 
-      if (count >= 5 && !activeAgents.current.has(agentId)) {
+      if (bytes > 2000 && !activeAgents.current.has(agentId)) {
         markRunning(agentId);
       }
 
-      // Signal 4: Large data chunks indicate active output (tool results, code gen, responses)
-      if (data.length > 80 && !activeAgents.current.has(agentId)) {
-        markRunning(agentId);
-      }
-
-      // Reset idle timer — after 2s of silence, classify the prompt state.
-      // Using 2s instead of 500ms because Claude can have brief pauses
-      // between tool calls that don't mean it's done.
+      // Reset idle timer — after 800ms of silence, classify the prompt state.
       const existing = idleTimers.current.get(agentId);
       if (existing) clearTimeout(existing);
       idleTimers.current.set(
@@ -247,7 +254,7 @@ export function App() {
           }
 
           idleTimers.current.delete(agentId);
-        }, 2000)
+        }, 800)
       );
     });
 
