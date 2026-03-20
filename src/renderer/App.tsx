@@ -3,15 +3,11 @@ import { useAgents } from "./hooks/useAgents.js";
 import { useSettings } from "./hooks/useSettings.js";
 import { AgentList } from "./components/AgentList.js";
 import { AgentDetail } from "./components/AgentDetail.js";
-import { GitStatus } from "./components/GitStatus.js";
-import { DirectoryExplorer } from "./components/DirectoryExplorer.js";
 import { destroyTerminal } from "./components/Terminal.js";
 import { SSHConnectModal } from "./components/SSHConnectModal.js";
 import { ResumeSessionModal } from "./components/ResumeSessionModal.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import type { AgentType, SSHConnection, ClaudeSession } from "../shared/types.js";
-
-type SidebarPanel = "git" | "files" | null;
 
 const BUILD_CHANNEL = (import.meta.env.VITE_BUILD_CHANNEL as string) || "local";
 
@@ -23,13 +19,7 @@ export function App() {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [pendingAgentType, setPendingAgentType] = useState<AgentType>("claude");
   const [unreadAgents, setUnreadAgents] = useState<Set<string>>(new Set());
-  const [sidebarPanel, setSidebarPanel] = useState<SidebarPanel>(null);
-  const [panelHeight, setPanelHeight] = useState(() => {
-    const saved = localStorage.getItem("panelHeight");
-    return saved ? parseInt(saved, 10) : 300;
-  });
   const { settings, updateSettings } = useSettings();
-  const draggingRef = useRef(false);
 
   const selectedAgent = agents.find((a) => a.id === selectedId) ?? null;
 
@@ -44,11 +34,6 @@ export function App() {
       });
     }
   }, []);
-
-  // Persist panel height
-  useEffect(() => {
-    localStorage.setItem("panelHeight", String(panelHeight));
-  }, [panelHeight]);
 
   // System notifications + dock badge when agents need attention
   useEffect(() => {
@@ -124,27 +109,6 @@ export function App() {
     const info = await createAgent({ cwd: remotePath, ssh: conn, agentType: pendingAgentType });
     selectAgent(info.id);
   };
-
-  // Drag to resize the bottom panel
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    draggingRef.current = true;
-    const startY = e.clientY;
-    const startH = panelHeight;
-
-    const onMove = (ev: MouseEvent) => {
-      if (!draggingRef.current) return;
-      const delta = startY - ev.clientY;
-      setPanelHeight(Math.max(100, Math.min(600, startH + delta)));
-    };
-    const onUp = () => {
-      draggingRef.current = false;
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }, [panelHeight]);
 
   // Track PTY activity to set agent state and detect when Claude needs input
   const idleTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -337,20 +301,6 @@ export function App() {
         setShowCommandPalette((v) => !v);
         return;
       }
-      if (e.metaKey && e.key === "g") {
-        e.preventDefault();
-        setSidebarPanel((v) => (v === "git" ? null : "git"));
-        return;
-      }
-      if (e.metaKey && e.key === "f") {
-        e.preventDefault();
-        setSidebarPanel((v) => (v === "files" ? null : "files"));
-        return;
-      }
-      if (e.key === "Escape" && sidebarPanel) {
-        setSidebarPanel(null);
-        return;
-      }
       if (e.metaKey && e.key === "w") {
         e.preventDefault();
         if (selectedId) {
@@ -370,7 +320,7 @@ export function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [agents, sidebarPanel]);
+  }, [agents]);
 
   return (
     <div style={styles.root}>
@@ -390,61 +340,6 @@ export function App() {
             }}
             onReorder={reorderAgents}
           />
-        </div>
-
-        {/* Bottom panel — Git or Files */}
-        {sidebarPanel && (
-          <>
-            {/* Drag handle */}
-            <div
-              style={styles.dragHandle}
-              onMouseDown={handleDragStart}
-            >
-              <div style={styles.dragBar} />
-            </div>
-
-            <div style={{ ...styles.bottomPanel, height: panelHeight }}>
-              {sidebarPanel === "git" && selectedAgent ? (
-                <GitStatus
-                  cwd={selectedAgent.cwd}
-                  ssh={selectedAgent.ssh}
-                  onClose={() => setSidebarPanel(null)}
-                />
-              ) : sidebarPanel === "files" && selectedAgent ? (
-                <DirectoryExplorer
-                  cwd={selectedAgent.cwd}
-                  ssh={selectedAgent.ssh}
-                  onClose={() => setSidebarPanel(null)}
-                />
-              ) : (
-                <div style={styles.noAgent}>Select an agent first</div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* Tab bar — Git and Files only */}
-        <div style={styles.tabBar}>
-          <button
-            onClick={() => setSidebarPanel((v) => (v === "git" ? null : "git"))}
-            className="panel-toggle"
-            style={{
-              ...styles.tab,
-              color: sidebarPanel === "git" ? "var(--accent)" : "var(--text-muted)",
-            }}
-          >
-            <span style={styles.underline}>G</span>it
-          </button>
-          <button
-            onClick={() => setSidebarPanel((v) => (v === "files" ? null : "files"))}
-            className="panel-toggle"
-            style={{
-              ...styles.tab,
-              color: sidebarPanel === "files" ? "var(--accent)" : "var(--text-muted)",
-            }}
-          >
-            <span style={styles.underline}>F</span>iles
-          </button>
         </div>
       </div>
 
@@ -530,56 +425,6 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     overflow: "hidden",
     position: "relative",
-  },
-  bottomPanel: {
-    flexShrink: 0,
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-  },
-  dragHandle: {
-    flexShrink: 0,
-    height: 6,
-    cursor: "row-resize",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderTop: "1px solid var(--border-subtle)",
-  },
-  dragBar: {
-    width: 32,
-    height: 2,
-    borderRadius: 1,
-    background: "var(--border)",
-  },
-  tabBar: {
-    display: "flex",
-    borderTop: "1px solid var(--border-subtle)",
-    flexShrink: 0,
-  },
-  tab: {
-    flex: 1,
-    padding: "6px 8px",
-    background: "transparent",
-    border: "none",
-    borderRight: "1px solid var(--border-subtle)",
-    fontSize: 11,
-    fontWeight: 600,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  underline: {
-    textDecoration: "underline",
-    textUnderlineOffset: 2,
-  },
-  noAgent: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "var(--text-muted)",
-    fontSize: 12,
   },
   main: {
     flex: 1,

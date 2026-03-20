@@ -24,11 +24,16 @@ export class PtyManager {
     // Kill existing session if any
     this.kill(agentId);
 
-    const cli = agentType === "codex" ? "codex" : "claude";
     let shell: string;
     let args: string[];
 
-    if (ssh) {
+    if (agentType === "shell") {
+      // Plain shell — no CLI agent, just the user's shell in the cwd
+      const escapedCwd = cwd.replace(/'/g, "'\\''");
+      shell = process.env.SHELL || "/bin/zsh";
+      args = ["-l", "-i", "-c", `cd '${escapedCwd}' && exec ${shell}`];
+    } else if (ssh) {
+      const cli = agentType === "codex" ? "codex" : "claude";
       shell = "ssh";
       args = [
         "-o", "ConnectTimeout=10",
@@ -47,6 +52,7 @@ export class PtyManager {
         : "";
       args.push(`bash -l -c 'cd ${escapedCwd} && ${cli}${resumeFlag}'`);
     } else {
+      const cli = agentType === "codex" ? "codex" : "claude";
       // Use an interactive login shell so the user's full PATH is loaded.
       // Packaged Electron apps get a minimal environment from macOS —
       // -l loads .zprofile, -i loads .zshrc/.bashrc where PATH is usually set.

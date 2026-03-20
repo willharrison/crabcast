@@ -2,7 +2,7 @@ export type AgentId = string;
 
 export type AgentState = "idle" | "running" | "stopped" | "error";
 
-export type AgentType = "claude" | "codex";
+export type AgentType = "claude" | "codex" | "shell";
 
 export interface SSHConnection {
   user: string;

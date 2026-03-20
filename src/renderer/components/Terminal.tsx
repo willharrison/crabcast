@@ -232,6 +232,15 @@ export function Terminal({ agentId, cwd, ssh, sessionId, agentType, fontSize = 1
 }
 
 /** Clean up a terminal when an agent is removed */
+/** Scroll a terminal to the bottom */
+export function scrollTerminalToBottom(agentId: string): void {
+  const entry = terminalCache.get(agentId);
+  if (entry) {
+    entry.term.scrollToBottom();
+  }
+}
+
+/** Clean up a terminal when an agent is removed */
 export function destroyTerminal(agentId: string): void {
   const entry = terminalCache.get(agentId);
   if (entry) {
@@ -243,8 +252,8 @@ export function destroyTerminal(agentId: string): void {
 
 const styles: Record<string, React.CSSProperties> = {
   outer: {
-    flex: 1,
-    minHeight: 0,
+    width: "100%",
+    height: "100%",
     overflow: "hidden",
     background: "#0e1117",
     padding: "8px 0 0 8px",
